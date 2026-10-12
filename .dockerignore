@@ -1,6 +1,7 @@
-node_modules
-dist
 .git
+**/node_modules
+**/.next
+**/target
 .env
 .env.*
 !.env.example

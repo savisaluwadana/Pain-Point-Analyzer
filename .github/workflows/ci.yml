@@ -1,142 +1,66 @@
-name: CI
-
+name: Rust + Next.js + PostgreSQL CI
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
-
 permissions:
   contents: read
-
 jobs:
-  validate:
+  rust:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Documentation references and links
-        run: npm run docs:check
-
-      - name: Unit tests
-        run: npm test
-
-      - name: Check server syntax
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust compilation and unit tests
+        working-directory: api
         run: |
-          node --check server/index.js
-          node --check server/app.js
-          node --check server/redditRoutes.js
-          node --check server/painScanRoutes.js
-          node --check server/evidenceRoutes.js
-          node --check server/generalPainEngine.js
-          node --check server/hostIntelligenceRoutes.js
-          node --check server/researchJobRoutes.js
-          node --check server/researchSearchPlanner.js
-          node --check server/researchSearchRoutes.js
-          node --check server/reliabilityCore.js
-          node --check server/reliabilityRoutes.js
-          node --check server/integrityGuardRoutes.js
-          node --check server/qualityIntelligenceCore.js
-          node --check server/qualityIntelligenceRoutes.js
-          node --check server/opportunityOsCore.js
-          node --check server/opportunityOsRoutes.js
-          node --check server/scrapeIntelligenceCore.js
-          node --check server/scrapeIntelligenceRoutes.js
-          node --check mcp/hostTools.js
-          node --check mcp/searchTools.js
-          node --check mcp/qualityTools.js
-          node --check mcp/opportunityTools.js
-          node --check mcp/scrapeTools.js
-          node --check mcp/server.js
-
-      - name: MCP stdio smoke test
-        run: |
-          OUTPUT=$(printf '%s\n%s\n' \
-            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"1.0.0"}}}' \
-            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-            | node mcp/server.js 2>/tmp/mcp-stderr.log)
-          echo "$OUTPUT" | grep '"protocolVersion":"2025-11-25"'
-          echo "$OUTPUT" | grep '"name":"ingest_evidence"'
-          echo "$OUTPUT" | grep '"name":"analyze_pain_points"'
-          echo "$OUTPUT" | grep '"name":"create_research_job"'
-          echo "$OUTPUT" | grep '"name":"claim_research_job"'
-          echo "$OUTPUT" | grep '"name":"get_research_search_plan"'
-          echo "$OUTPUT" | grep '"name":"get_deep_scrape_plan"'
-          echo "$OUTPUT" | grep '"name":"record_deep_scrape_result"'
-          echo "$OUTPUT" | grep '"name":"record_research_search_progress"'
-          echo "$OUTPUT" | grep '"name":"evaluate_research_evidence_quality"'
-          echo "$OUTPUT" | grep '"name":"get_research_search_memory"'
-          echo "$OUTPUT" | grep '"name":"complete_research_job_without_opportunities"'
-          echo "$OUTPUT" | grep '"name":"evaluate_research_job_coverage"'
-          echo "$OUTPUT" | grep '"name":"start_job_semantic_analysis"'
-          echo "$OUTPUT" | grep '"name":"get_research_job_validation_pack"'
-          echo "$OUTPUT" | grep '"name":"submit_opportunity_validation"'
-          echo "$OUTPUT" | grep '"name":"start_llm_research_run"'
-          echo "$OUTPUT" | grep '"name":"get_llm_evidence_batch"'
-          echo "$OUTPUT" | grep '"name":"submit_llm_annotations"'
-          echo "$OUTPUT" | grep '"name":"get_llm_synthesis_pack"'
-          echo "$OUTPUT" | grep '"name":"submit_llm_synthesis"'
-          echo "$OUTPUT" | grep '"name":"get_research_graph"'
-          echo "$OUTPUT" | grep '"name":"get_research_quality_summary"'
-          echo "$OUTPUT" | grep '"name":"refresh_market_entities"'
-          echo "$OUTPUT" | grep '"name":"get_cluster_consensus_pack"'
-          echo "$OUTPUT" | grep '"name":"submit_cluster_consensus"'
-          echo "$OUTPUT" | grep '"name":"get_market_sizing_pack"'
-          echo "$OUTPUT" | grep '"name":"submit_market_sizing_assessment"'
-          echo "$OUTPUT" | grep '"name":"create_opportunity_workspace"'
-          echo "$OUTPUT" | grep '"name":"submit_opportunity_strategy"'
-          echo "$OUTPUT" | grep '"name":"create_validation_experiment"'
-          echo "$OUTPUT" | grep '"name":"record_validation_result"'
-          echo "$OUTPUT" | grep '"name":"get_opportunity_execution_pack"'
-          echo "$OUTPUT" | grep '"name":"submit_build_spec"'
-          echo "$OUTPUT" | grep '"name":"submit_gtm_plan"'
-          echo "$OUTPUT" | grep '"name":"get_source_scrape_contract"'
-          echo "$OUTPUT" | grep '"name":"start_scrape_session"'
-          echo "$OUTPUT" | grep '"name":"add_scrape_candidates"'
-          echo "$OUTPUT" | grep '"name":"get_next_scrape_batch"'
-          echo "$OUTPUT" | grep '"name":"record_scrape_page_result"'
-          echo "$OUTPUT" | grep '"name":"get_scrape_session_summary"'
-          echo "$OUTPUT" | grep '"name":"reopen_scrape_session"'
-          echo "$OUTPUT" | grep 'No model API key is required'
-          echo "$OUTPUT" | grep 'source-aware search plans'
-          echo "$OUTPUT" | grep 'sourced market sizing'
-          ! grep -Eq '"(openai|@anthropic-ai/sdk)"' package.json
-
-      - name: Build
-        run: npm run build
-
-  container-smoke:
+          cargo check --all-targets
+          cargo test
+  next:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - name: Validate Compose configuration
+          node-version: '22'
+      - name: Next.js production build
+        working-directory: web
+        run: |
+          npm install --no-audit --no-fund
+          npm run typecheck
+          npm run build
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose
+        env:
+          TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
+          POSTGRES_PASSWORD: dev-placeholder
         run: docker compose config --quiet
-      - name: Build and start complete stack
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
+      POSTGRES_PASSWORD: dev-integration-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start PostgreSQL, Rust and Next.js
         run: docker compose up --build -d --wait --wait-timeout 180
-      - name: Verify built app and Mongo-backed workflows
-        run: node scripts/smoke-stack.mjs
-      - name: Show container logs
+      - name: Verify the end-to-end path and default-deny Reddit OAuth
+        run: |
+          curl --fail --retry 15 --retry-delay 3 --retry-connrefused http://127.0.0.1:3000/api/health | grep '"ok":true'
+          curl --fail http://127.0.0.1:3000/ > /tmp/pain-home.html
+          grep -qi 'Pain Intelligence' /tmp/pain-home.html
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/reddit/start)" = 503
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/me)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/evidence)" = 401
+      - name: End-to-end MCP, research workflows and tenant isolation
+        run: bash scripts/test_mcp.sh
+      - name: Capture diagnostics
         if: always()
         run: docker compose logs --tail=100
-      - name: Stop test stack
+      - name: Clean test stack
         if: always()
         run: docker compose down -v

@@ -1,32 +1,16 @@
-# Dependencies
 node_modules/
-
-# Build outputs
+**/node_modules/
+.next/
+**/.next/
+target/
+**/target/
 dist/
 build/
 coverage/
-
-# Environment files
 .env
 .env.*
 !.env.example
-
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 *.log
-
-# OS / editor
 .DS_Store
 .vscode/
 .idea/
-
-# Runtime files
-*.pid
-*.seed
-*.pid.lock
-
-# Database backups
-*.archive.gz
