@@ -1,4 +1,5 @@
 mod jobs;
+mod csrf;
 mod mcp;
 mod oauth;
 mod reddit;
@@ -50,17 +51,24 @@ fn config()->anyhow::Result<Config> {
     anyhow::ensure!(key.len()==32, "TOKEN_ENCRYPTION_KEY_HEX must contain exactly 32 bytes");
     let mut encryption_key=[0u8;32];
     encryption_key.copy_from_slice(&key);
+    let web_url=env::var("WEB_URL").unwrap_or_else(|_|"http://localhost:3000".into());
+    let web_origin=url::Url::parse(&web_url)?;
+    anyhow::ensure!(web_origin.username().is_empty() && web_origin.password().is_none() && web_origin.query().is_none() && web_origin.fragment().is_none() && web_origin.path()=="/","WEB_URL must be an origin without path, credentials, query or fragment");
+    anyhow::ensure!(web_origin.scheme()=="https" || (web_origin.scheme()=="http" && matches!(web_origin.host_str(),Some("localhost"|"127.0.0.1"))),"WEB_URL must be HTTPS outside localhost");
+    let secure_cookies=env::var("COOKIE_SECURE").as_deref()==Ok("true");
+    anyhow::ensure!(web_origin.scheme()!="https" || secure_cookies,"COOKIE_SECURE=true is required when WEB_URL uses HTTPS");
     let redirect_uri=env::var("REDDIT_REDIRECT_URI")?;
-    anyhow::ensure!(redirect_uri.starts_with("http://localhost:") || redirect_uri.starts_with("https://"),"Callback must be HTTPS (localhost permitted for development)");
+    let redirect=url::Url::parse(&redirect_uri)?;
+    anyhow::ensure!(redirect.origin()==web_origin.origin() && redirect.path()=="/api/auth/reddit/callback" && redirect.query().is_none() && redirect.fragment().is_none(),"REDDIT_REDIRECT_URI must match WEB_URL origin and /api/auth/reddit/callback");
     Ok(Config {
         client_id:env::var("REDDIT_CLIENT_ID").unwrap_or_default(),
         client_secret:env::var("REDDIT_CLIENT_SECRET").unwrap_or_default(),
         redirect_uri,
-        web_url:env::var("WEB_URL").unwrap_or_else(|_|"http://localhost:3000".into()),
+        web_url,
         user_agent:env::var("REDDIT_USER_AGENT").unwrap_or_default(),
         encryption_key,
         reddit_approved:env::var("REDDIT_API_APPROVED").as_deref()==Ok("true"),
-        secure_cookies:env::var("COOKIE_SECURE").as_deref()==Ok("true"),
+        secure_cookies,
     })
 }
 
@@ -105,6 +113,7 @@ async fn main()->anyhow::Result<()> {
       .route("/api/opportunities",get(research::opportunities))
       .route("/api/privacy/delete-data",post(research::delete_data))
       .layer(TraceLayer::new_for_http())
+      .layer(axum::middleware::from_fn_with_state(st.clone(),csrf::require_same_origin))
       .with_state(st.clone());
     tokio::spawn(jobs::worker(st.clone()));
     tokio::spawn(jobs::cleanup(st.clone()));

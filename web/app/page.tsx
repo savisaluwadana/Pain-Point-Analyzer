@@ -135,8 +135,8 @@ export default function Home(){
     {newKey&&<div className="subpanel"><span className="eyebrow">ONE-TIME SECRET — COPY NOW</span><p>Copy this key into your MCP host configuration. It will not be shown again.</p><div className="row"><input aria-label="New API key" type="text" value={newKey} readOnly/><button className="tiny" onClick={()=>void navigator.clipboard.writeText(newKey)}>Copy</button></div></div>}
     <div className="subpanel"><span className="eyebrow">ACTIVE API KEYS</span>{keys.map(k=><div className="list-item job" key={k.id}><b>{k.label}</b><small>{new Date(k.created_at).toLocaleDateString()}</small><button className="tiny" disabled={busy} onClick={()=>void act(async()=>{await api('/mcp/keys/'+k.id,{method:'DELETE'});setNewKey('');},'API key revoked')}>Revoke</button></div>)}</div>
     <div className="subpanel"><span className="eyebrow">RUN THE MCP BRIDGE</span><p>Install Rust and run this command from the repository root with your secret set in <code>PAIN_MCP_API_KEY</code>. Keep API credentials out of committed files.</p>
-     <pre className="command">cargo run --manifest-path v2/api/Cargo.toml -- --mcp</pre>
-     <p className="disclaimer">Requires a running v2 web/API stack. The bridge exposes 57 original tool schemas. Execution is authenticated and all workflow data stays in your PostgreSQL workspace.</p>
+     <pre className="command">cargo run --manifest-path api/Cargo.toml -- --mcp</pre>
+     <p className="disclaimer">Requires a running web/API stack. The bridge exposes 57 original tool schemas. Execution is authenticated and all workflow data stays in your PostgreSQL workspace.</p>
     </div>
    </section>}
    <footer>PAIN INTELLIGENCE OS <span>© 2026 · Open-source research infrastructure</span></footer>
