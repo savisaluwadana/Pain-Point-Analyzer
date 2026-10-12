@@ -83,3 +83,16 @@ pub async fn stdio() -> anyhow::Result<()> {
  }
  Ok(())
 }
+
+pub async fn user_runs(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<Vec<Value>>>{
+ let owner=crate::oauth::user_id(&st,&headers).await?;
+ Ok(Json(state::list(&st,owner,"llm-run",100).await?))
+}
+pub async fn user_workspaces(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<Vec<Value>>>{
+ let owner=crate::oauth::user_id(&st,&headers).await?;
+ Ok(Json(state::list(&st,owner,"workspace",100).await?))
+}
+pub async fn user_research_jobs(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<Vec<Value>>>{
+ let owner=crate::oauth::user_id(&st,&headers).await?;
+ Ok(Json(state::list(&st,owner,"research-job",100).await?))
+}
