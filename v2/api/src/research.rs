@@ -118,3 +118,24 @@ pub async fn delete_data(State(st):State<AppState>,headers:HeaderMap)->ApiResult
  response.headers_mut().insert(SET_COOKIE,HeaderValue::from_static("pil_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"));
  Ok(response)
 }
+
+#[derive(Deserialize)]
+pub struct ThreadInput {post_id:String,project_id:Option<Uuid>,limit:Option<usize>}
+pub async fn thread(State(st):State<AppState>,headers:HeaderMap,Json(body):Json<ThreadInput>)->ApiResult<Json<Value>>{
+ let uid=oauth::user_id(&st,&headers).await?;
+ assert_project(&st,uid,body.project_id).await?;
+ let comments=reddit::fetch_comments(&st,uid,&body.post_id,body.limit.unwrap_or(50).clamp(1,100)).await?;
+ let count=comments.len();
+ let mut tx=st.db.begin().await.map_err(internal)?;
+ for item in comments{
+   let source_id=format!("{}:t1_{}",body.post_id,item.id);
+   let url=if item.permalink.starts_with('/') {format!("https://www.reddit.com{}",item.permalink)}else{format!("https://www.reddit.com/comments/{}",body.post_id)};
+   let published=DateTime::from_timestamp(item.created_utc as i64,0);
+   sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,body,published_at,metadata) VALUES($1,$2,'reddit-comment',$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET body=excluded.body,metadata=excluded.metadata,collected_at=now()")
+     .bind(uid).bind(body.project_id).bind(source_id).bind(url).bind(item.body)
+     .bind(published).bind(json!({"thread_id":body.post_id,"score":item.score}))
+     .execute(&mut *tx).await.map_err(internal)?;
+ }
+ tx.commit().await.map_err(internal)?;
+ Ok(Json(json!({"saved":count,"thread_id":body.post_id})))
+}
