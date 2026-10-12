@@ -1,5 +1,7 @@
 pub mod state;
 mod workflows;
+mod evidence;
+mod advanced;
 use crate::{AppState,ApiError,ApiResult};
 use axum::{extract::State,http::HeaderMap,Json};
 use serde::{Deserialize,Serialize};
@@ -29,7 +31,7 @@ pub async fn execute(State(st):State<AppState>,headers:HeaderMap,Json(input):Jso
 }
 
 pub async fn stdio() -> anyhow::Result<()> {
- let api=env::var("PAIN_PLATFORM_API_URL").unwrap_or_else(|_|"http://127.0.0.1:4000".into());
+ let api=env::var("PAIN_PLATFORM_API_URL").unwrap_or_else(|_|"http://127.0.0.1:3000".into());
  let key=env::var("PAIN_MCP_API_KEY").map_err(|_|anyhow::anyhow!("PAIN_MCP_API_KEY must be configured; create a revocable key in the dashboard"))?;
  let url=format!("{}/api/mcp/execute",api.trim_end_matches('/'));
  let http=reqwest::Client::builder().timeout(std::time::Duration::from_secs(45)).build()?;
