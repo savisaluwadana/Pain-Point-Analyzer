@@ -1,5 +1,5 @@
 use crate::{oauth,reddit,scoring::{self,EvidenceText},AppState,ApiResult,bad,internal};
-use axum::{extract::{Query,State},http::HeaderMap,Json};
+use axum::{extract::{Query,State},http::{HeaderMap,header::{SET_COOKIE},HeaderValue},response::{IntoResponse,Response},Json};
 use chrono::{DateTime,Utc};
 use serde::{Deserialize,Serialize};
 use serde_json::{json,Value};
@@ -111,8 +111,10 @@ pub async fn opportunities(State(st):State<AppState>,headers:HeaderMap)->ApiResu
  let rows=sqlx::query_as("SELECT id,title,problem,score,evidence_refs,created_at FROM opportunities WHERE owner_id=$1 ORDER BY score DESC,created_at DESC LIMIT 100").bind(uid).fetch_all(&st.db).await.map_err(internal)?;
  Ok(Json(rows))
 }
-pub async fn delete_data(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<Value>>{
+pub async fn delete_data(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Response>{
  let uid=oauth::user_id(&st,&headers).await?;
  sqlx::query("DELETE FROM users WHERE id=$1").bind(uid).execute(&st.db).await.map_err(internal)?;
- Ok(Json(json!({"deleted":true,"action":"Your stored account, credentials, evidence, research and sessions were deleted"})))
+ let mut response=Json(json!({"deleted":true,"action":"Your stored account, credentials, evidence, research and sessions were deleted"})).into_response();
+ response.headers_mut().insert(SET_COOKIE,HeaderValue::from_static("pil_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"));
+ Ok(response)
 }
