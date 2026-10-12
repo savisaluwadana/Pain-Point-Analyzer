@@ -48,6 +48,9 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
+      POSTGRES_PASSWORD: dev-integration-password
     steps:
       - uses: actions/checkout@v4
       - name: Build and start PostgreSQL + Rust API + Next.js
