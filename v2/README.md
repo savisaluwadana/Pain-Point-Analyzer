@@ -11,6 +11,13 @@ This is a parallel **migration candidate**, not a drop-in replacement for the or
 - Heuristic clustering, independent story counts, persisted reports, background jobs claimed atomically with lease tokens
 - Per-account complete data deletion, seven-day default expiry for new Reddit evidence, bounded retry backoff and an idempotent MongoDB archive/import utility
 - Compose runtime and distinct CI for Rust / Next / Compose validation
+- Native Rust MCP JSON-RPC stdio bridge, 57 copied schemas, key rotation/revocation, PostgreSQL host-research workflows, Agent Research dashboard and full-stack CI regression scenarios
+
+## Host-powered AI research and the Rust MCP bridge
+
+The new Rust MCP bridge advertises all 57 original v1 MCP tools from the checked-in schema catalog and uses owner-scoped PostgreSQL records for jobs, search memory, scraping plans, semantic annotation, synthesis, consensus, sizing and opportunity execution. It has a revocable API-key system and a dedicated **Agent Research** dashboard.
+
+See [Native Rust MCP setup](docs/MCP.md) for Codex/Claude host configuration and the execution workflow. The host supplies its own permitted browsing and semantic reasoning; the backend validates and stores structured evidence. The original v1 outputs are not fully byte-for-byte compatible yet, so verify downstream client behavior before replacing v1.
 
 ## Setup
 
@@ -45,6 +52,12 @@ Start PostgreSQL and export `DATABASE_URL`, `REDDIT_REDIRECT_URI`, `WEB_URL`, `T
 | GET/POST | /api/research/jobs | Queue / inspect collection jobs |
 | GET | /api/opportunities | Evidence-linked research candidates |
 | POST | /api/privacy/delete-data | Remove account and dependent records |
+| GET/POST | /api/mcp/keys | List/create owner-scoped revocable MCP API keys |
+| DELETE | /api/mcp/keys/{id} | Revoke an MCP credential |
+| POST | /api/mcp/execute | Call any validated MCP tool with an API bearer key |
+| GET | /api/mcp/runs | List user-owned semantic research runs |
+| GET | /api/mcp/workspaces | List user-owned opportunity workspaces |
+| GET | /api/mcp/research-jobs | List user-owned host-driven research jobs |
 
 Every stateful endpoint other than OAuth start/callback and health requires the server-issued session cookie.
 
@@ -64,7 +77,7 @@ The archival table can contain personal information and old research data. Only 
 
 ## Boundaries / not yet parity-complete
 
-- The former host-backed MCP bridge exposes 57 tools in v1. Those tool contracts, multi-source research orchestration, scraping intelligence, quality/consensus assessments and advanced Opportunity OS have **not yet been ported** to native Rust. Keep v1 available for those workflows.
+- All 57 v1 MCP **tool names and schemas** are now exposed by Rust. Their current Rust implementations and persisted workflow objects differ in response shape and analysis depth from some v1 tools. The source-aware quality/scraping planning and semantic orchestration are not yet functionally equivalent in every scenario, and v1 integration parity must be verified before retiring it.
 - OAuth approval is an operator-configured flag, not approval supplied by Reddit. Reddit may deny new client credentials or change access.
 - The typed scoring engine is *heuristic* (not LLM reasoning). Its scores rank investigation only and do not predict revenue or purchasing.
 - Initial list endpoints are bounded, not fully cursor-paginated.
