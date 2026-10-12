@@ -3,6 +3,7 @@ use axum::{extract::{Query,State},http::{HeaderMap,StatusCode},Json};
 use serde::{Deserialize,Serialize};
 use serde_json::Value;
 use sqlx::types::Uuid;
+use chrono::{DateTime,Utc};
 
 #[derive(Serialize,Deserialize,Clone)]
 pub(crate) struct RedditPost {
@@ -35,11 +36,57 @@ pub(crate) fn is_reddit_host(host:&str)->bool{
  let host=host.to_ascii_lowercase();
  host=="reddit.com"||host.ends_with(".reddit.com")||host=="redd.it"||host.ends_with(".redd.it")
 }
+fn configured_limit(name:&str,default:i32,max:i32)->i32{
+ std::env::var(name).ok().and_then(|x|x.parse::<i32>().ok()).unwrap_or(default).clamp(1,max)
+}
+async fn reserve_provider_request(st:&AppState,user:Uuid)->ApiResult<()>{
+ let mut tx=st.db.begin().await.map_err(internal)?;
+ let scopes=[
+  ("global".to_string(),None,configured_limit("REDDIT_REQUESTS_PER_MINUTE",30,120)),
+  (format!("user:{user}"),Some(user),configured_limit("REDDIT_USER_REQUESTS_PER_MINUTE",10,60)),
+ ];
+ for (scope,owner,limit) in scopes {
+  sqlx::query("INSERT INTO reddit_api_budgets(scope,owner_id) VALUES($1,$2) ON CONFLICT DO NOTHING")
+   .bind(&scope).bind(owner).execute(&mut *tx).await.map_err(internal)?;
+  let (started,count,blocked): (DateTime<Utc>,i32,Option<DateTime<Utc>>)=
+   sqlx::query_as("SELECT window_started_at,request_count,blocked_until FROM reddit_api_budgets WHERE scope=$1 FOR UPDATE")
+    .bind(&scope).fetch_one(&mut *tx).await.map_err(internal)?;
+  if blocked.is_some_and(|until|until>Utc::now()){
+    return Err(ApiError(StatusCode::TOO_MANY_REQUESTS,"Reddit provider backoff is active. Retry later.".into()));
+  }
+  let elapsed=Utc::now().signed_duration_since(started).num_seconds()>=60;
+  if !elapsed && count>=limit{
+    return Err(ApiError(StatusCode::TOO_MANY_REQUESTS,"This account or app has reached its conservative Reddit API request budget. Retry in about a minute.".into()));
+  }
+  sqlx::query("UPDATE reddit_api_budgets SET request_count=$2,window_started_at=CASE WHEN $3 THEN now() ELSE window_started_at END,blocked_until=CASE WHEN blocked_until<now() THEN NULL ELSE blocked_until END WHERE scope=$1")
+   .bind(&scope).bind(if elapsed{1}else{count+1}).bind(elapsed)
+   .execute(&mut *tx).await.map_err(internal)?;
+ }
+ tx.commit().await.map_err(internal)?;
+ Ok(())
+}
+async fn backoff_after_provider_response(st:&AppState,response:&reqwest::Response)->ApiResult<()>{
+ // Apply provider backoff globally: multiple workers share the same app credentials.
+ let limited=response.status()==reqwest::StatusCode::TOO_MANY_REQUESTS ||
+   response.headers().get("x-ratelimit-remaining").and_then(|v|v.to_str().ok())
+    .and_then(|s|s.parse::<f64>().ok()).is_some_and(|remaining|remaining<=0.0);
+ if limited{
+  let delay=response.headers().get("retry-after").and_then(|v|v.to_str().ok()).and_then(|s|s.parse::<i64>().ok())
+   .or_else(||response.headers().get("x-ratelimit-reset").and_then(|v|v.to_str().ok()).and_then(|s|s.parse::<f64>().ok()).map(|v|v.ceil() as i64))
+   .unwrap_or(60).clamp(5,3600);
+  sqlx::query("UPDATE reddit_api_budgets SET blocked_until=GREATEST(COALESCE(blocked_until,now()),now()+($1 * interval '1 second')) WHERE scope='global'")
+    .bind(delay).execute(&st.db).await.map_err(internal)?;
+ }
+ Ok(())
+}
+
 async fn reddit_get(st:&AppState,user:Uuid,path:&str,query:Vec<(&str,String)>)->ApiResult<Value>{
  let token=oauth::access_token(st,user).await?;
+ reserve_provider_request(st,user).await?;
  let url=format!("https://oauth.reddit.com{path}");
  let response=st.http.get(&url).bearer_auth(token).header("User-Agent",&st.cfg.user_agent).query(&query).send().await.map_err(internal)?;
  let status=response.status();
+ backoff_after_provider_response(st,&response).await?;
  if status==reqwest::StatusCode::TOO_MANY_REQUESTS {
    return Err(ApiError(StatusCode::TOO_MANY_REQUESTS,"Reddit API rate limit reached. Retry after the provider's allowed window.".into()));
  }
@@ -76,7 +123,7 @@ pub async fn comments(State(st):State<AppState>,headers:HeaderMap,Query(q):Query
 #[cfg(test)]
 mod tests {
  use super::*;
- #[test] fn bounded_names(){assert!(subreddit_ok("rust"));assert!(!subreddit_ok("rust/path"));assert!(!id_ok("../secret"));assert!(is_reddit_host("www.reddit.com"));assert!(!is_reddit_host("fake-reddit.com"));}
+ #[test] fn bounded_names(){assert!(subreddit_ok("rust"));assert!(!subreddit_ok("rust/path"));assert!(!id_ok("../secret"));assert!(is_reddit_host("www.reddit.com"));assert!(!is_reddit_host("fake-reddit.com"));assert_eq!(configured_limit("UNSET_TEST_SETTING",30,120),30);}
 }
 
 #[derive(Serialize,Deserialize,Clone)]

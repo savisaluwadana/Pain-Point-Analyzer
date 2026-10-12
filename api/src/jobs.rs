@@ -17,6 +17,10 @@ pub async fn list(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<V
 }
 pub async fn create(State(st):State<AppState>,headers:HeaderMap,Json(body):Json<JobInput>)->ApiResult<Json<Value>>{
  let uid=oauth::user_id(&st,&headers).await?;
+ if !st.cfg.reddit_approved {return Err(crate::ApiError(axum::http::StatusCode::SERVICE_UNAVAILABLE,"Reddit API access is not approved for this deployment".into()));}
+ let connected:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM reddit_credentials WHERE user_id=$1)")
+  .bind(uid).fetch_one(&st.db).await.map_err(internal)?;
+ if !connected{return Err(crate::bad("Reconnect Reddit before queuing API collection jobs"));}
  assert_project(&st,uid,body.project_id).await?;
  if body.subreddit.len()<2||body.subreddit.len()>21||!body.subreddit.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'_'){return Err(bad("Invalid subreddit"));}
  let id:Uuid=sqlx::query_scalar("INSERT INTO research_jobs(owner_id,project_id,subreddit) VALUES($1,$2,$3) RETURNING id")
@@ -55,6 +59,8 @@ pub async fn cleanup(st:AppState){
      tracing::error!(error=%err,"retention cleanup failed");
    }
    let _=sqlx::query("DELETE FROM user_sessions WHERE expires_at<now()").execute(&st.db).await;
+   // A worker killed during its final lease must not leave the job stuck forever.
+   let _=sqlx::query("UPDATE research_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL,finished_at=now(),last_error=COALESCE(last_error,'Worker lease expired after final retry') WHERE status='running' AND lease_expires_at<now() AND attempts>=3").execute(&st.db).await;
    sleep(Duration::from_secs(3600)).await;
  }
 }
