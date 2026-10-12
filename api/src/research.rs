@@ -21,6 +21,14 @@ pub async fn create_project(State(st):State<AppState>,headers:HeaderMap,Json(bod
     .bind(uid).bind(body.name.trim()).bind(body.description.unwrap_or_default().chars().take(2000).collect::<String>()).fetch_one(&st.db).await.map_err(internal)?;
  Ok(Json(data))
 }
+pub async fn delete_project(State(st):State<AppState>,headers:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Json<Value>>{
+ let uid=oauth::user_id(&st,&headers).await?;
+ let count=sqlx::query("DELETE FROM projects WHERE owner_id=$1 AND id=$2")
+  .bind(uid).bind(id).execute(&st.db).await.map_err(internal)?.rows_affected();
+ if count==0{return Err(crate::ApiError(axum::http::StatusCode::NOT_FOUND,"Project not found".into()));}
+ Ok(Json(json!({"deleted":true,"project_id":id,"notice":"Project deleted. Associated evidence and reports were preserved as unassigned."})))
+}
+
 #[derive(Deserialize)]
 pub struct EvidenceInput {source_kind:String,source_id:String,source_url:String,title:Option<String>,body:Option<String>,project_id:Option<Uuid>}
 #[derive(Serialize,FromRow)]
@@ -181,6 +189,10 @@ pub async fn thread(State(st):State<AppState>,headers:HeaderMap,Json(body):Json<
  let comments=reddit::fetch_comments(&st,uid,&body.post_id,body.limit.unwrap_or(50).clamp(1,100)).await?;
  let count=comments.len();
  let mut tx=st.db.begin().await.map_err(internal)?;
+ // Prevent in-flight thread collection from recreating Reddit content after a disconnect.
+ let authorized:Option<bool>=sqlx::query_scalar("SELECT true FROM reddit_credentials WHERE user_id=$1 FOR SHARE")
+  .bind(uid).fetch_optional(&mut *tx).await.map_err(internal)?;
+ if authorized.is_none(){return Err(crate::unauthorized());}
  for item in comments{
    let source_id=format!("{}:t1_{}",body.post_id,item.id);
    let url=if item.permalink.starts_with('/') {format!("https://www.reddit.com{}",item.permalink)}else{format!("https://www.reddit.com/comments/{}",body.post_id)};

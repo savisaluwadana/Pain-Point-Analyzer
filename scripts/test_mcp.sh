@@ -57,8 +57,13 @@ test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/projects" \
 curl --fail-with-body -sS -X POST "$api/projects" -H "Cookie: pil_session=$session" \
   -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   --data '{"name":"Permitted research project"}' | jq -e '.name == "Permitted research project"' >/dev/null
+test "$(sql "SELECT count(*) FROM information_schema.tables WHERE table_name='reddit_api_budgets'")" = 1
+# Deleting a project reassigns its evidence (rather than deleting unrelated research).
+project_id="$(curl --fail-with-body -sS "$api/projects" -H "Cookie: pil_session=$session" | jq -r '.[0].id')"
+curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
+  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 curl --fail-with-body -sS "$api/privacy/export" -H "Cookie: pil_session=$session" | \
-  jq -e '.account.reddit_username == "ci-researcher" and (.projects|length) == 1 and (.host_records|length) >= 2 and .truncated == false' >/dev/null
+  jq -e '.account.reddit_username == "ci-researcher" and (.projects|length) == 0 and (.host_records|length) >= 2 and .truncated == false' >/dev/null
 other="$(sql "INSERT INTO users(reddit_id,reddit_username) VALUES('ci-other-id','ci-other') ON CONFLICT (reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id")"
 other_token='pil_other_user_key'
 other_hash="$(printf '%s' "$other_token" | sha256sum | cut -c1-64)"

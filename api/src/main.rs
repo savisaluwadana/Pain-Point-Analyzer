@@ -105,6 +105,7 @@ async fn main()->anyhow::Result<()> {
       .route("/api/reddit/posts",get(reddit::posts))
       .route("/api/reddit/comments",get(reddit::comments))
       .route("/api/projects",get(research::projects).post(research::create_project))
+      .route("/api/projects/{id}",axum::routing::delete(research::delete_project))
       .route("/api/evidence",get(research::evidence).post(research::ingest_evidence))
       .route("/api/evidence/{id}",axum::routing::delete(research::delete_evidence))
       .route("/api/research/scan",post(research::scan))
