@@ -1,3 +1,4 @@
+mod jobs;
 mod oauth;
 mod reddit;
 mod research;
@@ -91,11 +92,12 @@ async fn main()->anyhow::Result<()> {
       .route("/api/research/scan",post(research::scan))
       .route("/api/research/analyze",post(research::analyze))
       .route("/api/research/runs",get(research::runs))
-      .route("/api/research/jobs",get(research::jobs).post(research::create_job))
+      .route("/api/research/jobs",get(jobs::list).post(jobs::create))
       .route("/api/opportunities",get(research::opportunities))
       .route("/api/privacy/delete-data",post(research::delete_data))
       .layer(TraceLayer::new_for_http())
       .with_state(st.clone());
+    tokio::spawn(jobs::worker(st.clone()));
     let addr=SocketAddr::from(([0,0,0,0],env::var("PORT").ok().and_then(|s|s.parse().ok()).unwrap_or(4000)));
     tracing::info!(%addr,"Rust API listening");
     let listener=tokio::net::TcpListener::bind(addr).await?;
