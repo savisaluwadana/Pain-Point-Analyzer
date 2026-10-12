@@ -2,7 +2,7 @@
 use crate::AppState;
 use axum::{
  extract::{Request,State},
- http::{header::{COOKIE,ORIGIN},HeaderMap,Method,StatusCode},
+ http::{header::{CACHE_CONTROL,COOKIE,ORIGIN},HeaderMap,HeaderValue,Method,StatusCode},
  middleware::Next,
  response::Response,
 };
@@ -22,7 +22,9 @@ pub(crate) async fn require_same_origin(
  State(state):State<AppState>,req:Request,next:Next
 )->Result<Response,StatusCode>{
  if !allowed(req.method(),req.headers(),&state.cfg.web_url){return Err(StatusCode::FORBIDDEN);}
- Ok(next.run(req).await)
+ let mut response=next.run(req).await;
+ response.headers_mut().insert(CACHE_CONTROL,HeaderValue::from_static("private, no-store"));
+ Ok(response)
 }
 #[cfg(test)]
 mod tests{

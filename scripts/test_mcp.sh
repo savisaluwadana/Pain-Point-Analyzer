@@ -64,6 +64,20 @@ curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 curl --fail-with-body -sS "$api/privacy/export" -H "Cookie: pil_session=$session" | \
   jq -e '.account.reddit_username == "ci-researcher" and (.projects|length) == 0 and (.host_records|length) >= 2 and .truncated == false' >/dev/null
+# Revocable API credentials are shown only once; revoked credentials cannot call tools.
+issued="$(curl --fail-with-body -sS -X POST "$api/mcp/keys" \
+ -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' \
+ -H 'Content-Type: application/json' --data '{"label":"CI temporary MCP client"}')"
+issued_secret="$(printf '%s' "$issued" | jq -r '.api_key')"
+issued_id="$(printf '%s' "$issued" | jq -r '.id')"
+[[ "$issued_secret" == pil_* ]]
+curl --fail-with-body -sS "$api/mcp/keys" -H "Cookie: pil_session=$session" | \
+ jq -e '.[] | select(.label=="CI temporary MCP client") | .id' >/dev/null
+curl --fail-with-body -sS -X DELETE "$api/mcp/keys/$issued_id" -H "Cookie: pil_session=$session" \
+ -H 'Origin: http://localhost:3000' | jq -e '.revoked == true' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/mcp/execute" \
+ -H "Authorization: Bearer $issued_secret" -H 'Content-Type: application/json' \
+ --data '{"name":"platform_status","arguments":{}}')" = 401
 other="$(sql "INSERT INTO users(reddit_id,reddit_username) VALUES('ci-other-id','ci-other') ON CONFLICT (reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id")"
 other_token='pil_other_user_key'
 other_hash="$(printf '%s' "$other_token" | sha256sum | cut -c1-64)"
