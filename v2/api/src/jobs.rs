@@ -31,7 +31,7 @@ pub async fn worker(st:AppState){
 }
 async fn work_once(st:&AppState)->ApiResult<()>{
  let item:Option<(Uuid,Uuid,String,Option<Uuid>,Uuid)>=sqlx::query_as(
-  "UPDATE research_jobs SET status='running',lease_token=gen_random_uuid(),lease_expires_at=now()+interval '2 minutes',attempts=attempts+1 WHERE id=(SELECT id FROM research_jobs WHERE status='queued' OR (status='running' AND lease_expires_at<now()) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id,owner_id,subreddit,project_id,lease_token")
+  "UPDATE research_jobs SET status='running',lease_token=gen_random_uuid(),lease_expires_at=now()+interval '2 minutes',attempts=attempts+1 WHERE id=(SELECT id FROM research_jobs WHERE (status='queued' AND next_attempt_at<=now()) OR (status='running' AND lease_expires_at<now() AND attempts<3) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id,owner_id,subreddit,project_id,lease_token")
    .fetch_optional(&st.db).await.map_err(internal)?;
  let Some((id,uid,sub,project,lease))=item else{return Ok(());};
  let outcome=async {
@@ -41,9 +41,20 @@ async fn work_once(st:&AppState)->ApiResult<()>{
  match outcome {
    Ok(_)=>{sqlx::query("UPDATE research_jobs SET status='complete',lease_token=NULL,lease_expires_at=NULL,finished_at=now() WHERE id=$1 AND lease_token=$2").bind(id).bind(lease).execute(&st.db).await.map_err(internal)?;},
    Err(error)=>{
-     sqlx::query("UPDATE research_jobs SET status=CASE WHEN attempts>=3 THEN 'failed' ELSE 'queued' END,lease_token=NULL,lease_expires_at=NULL,last_error=$3 WHERE id=$1 AND lease_token=$2")
-       .bind(id).bind(lease).bind(error.1).execute(&st.db).await.map_err(internal)?;
+     sqlx::query("UPDATE research_jobs SET status=CASE WHEN attempts>=3 THEN 'failed' ELSE 'queued' END,lease_token=NULL,lease_expires_at=NULL,last_error=$3,next_attempt_at=now() + (CASE WHEN $4 THEN interval '15 minutes' ELSE (attempts * interval '1 minute') END) WHERE id=$1 AND lease_token=$2")
+       .bind(id).bind(lease).bind(error.1).bind(error.0==axum::http::StatusCode::TOO_MANY_REQUESTS).execute(&st.db).await.map_err(internal)?;
    }
  }
  Ok(())
+}
+
+pub async fn cleanup(st:AppState){
+ let days: i32=std::env::var("REDDIT_RETENTION_DAYS").ok().and_then(|s|s.parse().ok()).unwrap_or(7).clamp(1,30);
+ loop {
+   if let Err(err)=sqlx::query("DELETE FROM evidence WHERE source_kind='reddit' AND collected_at < now() - ($1 * interval '1 day')").bind(days).execute(&st.db).await{
+     tracing::error!(error=%err,"retention cleanup failed");
+   }
+   let _=sqlx::query("DELETE FROM user_sessions WHERE expires_at<now()").execute(&st.db).await;
+   sleep(Duration::from_secs(3600)).await;
+ }
 }
