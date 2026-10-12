@@ -45,3 +45,28 @@ jobs:
           TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
           POSTGRES_PASSWORD: dev-placeholder
         run: docker compose config --quiet
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start PostgreSQL + Rust API + Next.js
+        working-directory: v2
+        env:
+          TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
+          POSTGRES_PASSWORD: dev-integration-password
+        run: docker compose up --build -d --wait --wait-timeout 180
+      - name: Verify full HTTP path and unapproved OAuth gate
+        run: |
+          curl --fail --retry 15 --retry-delay 3 --retry-connrefused http://127.0.0.1:3000/api/health | grep '"ok":true'
+          curl --fail http://127.0.0.1:3000/ > /tmp/pain-home.html
+          grep -qi 'Pain Intelligence' /tmp/pain-home.html
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/reddit/start)" = 503
+      - name: Capture logs
+        if: always()
+        working-directory: v2
+        run: docker compose logs --tail=100
+      - name: Stop stack
+        if: always()
+        working-directory: v2
+        run: docker compose down -v
