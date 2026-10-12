@@ -50,3 +50,13 @@ A connected host can use the Rust MCP server to plan searches, ingest permitted 
 ## Verification
 
 CI tests Rust, Next.js, Compose and the live web→API→database→MCP workflow, including separate research identities. Before public production, run real OAuth tests with an approved app, perform load/security tests, and check deletion/revocation and rate-limit policies.
+
+## Security and privacy controls
+
+Cookie-authenticated POST/PUT/PATCH/DELETE requests must carry an Origin that exactly matches the configured \`WEB_URL\`. Requests carrying only MCP bearer credentials do not rely on browser cookies, so they use bearer authentication independently. HTTPS deployment requires \`COOKIE_SECURE=true\` and a matching OAuth callback origin. X-Frame-Options and other standard browser security response headers are set in Next.js.
+
+The Privacy & Settings UI supports owner-scoped JSON export without OAuth secrets or raw Reddit posts, per-item evidence deletion, project deletion (preserving unassigned evidence), Reddit app disconnect with OAuth revocation, and account deletion. Account deletion is not blocked if a provider revocation attempt fails; the user is notified to revoke the app from Reddit's account settings. Deleted-user rows cascade through their research and API keys.
+
+A connection row is locked in the same transaction as Reddit evidence persistence. This ensures an in-progress collector cannot write Reddit data after disconnect has removed its credentials; disconnection also removes queued Reddit-only jobs. Host-created research summaries may still reference historical evidence IDs, so delete the whole account to erase them too.
+
+Provider-side Reddit API usage has a shared PostgreSQL request budget for all workers and each user, with bounded provider rate-limit backoff. Lease cleanup marks abandoned final-attempt research jobs failed instead of leaving them running indefinitely. Request budgets are conservative internal guardrails, not Reddit approval or quota guarantees.

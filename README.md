@@ -23,7 +23,7 @@ Put the generated hex value in `TOKEN_ENCRYPTION_KEY_HEX` in `.env` and set a st
 docker compose up --build -d --wait
 ```
 
-Open **http://localhost:3000**. The app automatically applies PostgreSQL migrations on startup. Without approved Reddit OAuth credentials, the UI and service can start, but Reddit sign-in/collection is disabled.
+Open **http://localhost:3000**. The app automatically applies PostgreSQL migrations on startup. Configure `REDDIT_REQUESTS_PER_MINUTE` and `REDDIT_USER_REQUESTS_PER_MINUTE` in `.env` if your approved app has stricter limits; provider-side restrictions always take precedence. Without approved Reddit OAuth credentials, the UI and service can start, but Reddit sign-in/collection is disabled.
 
 To stop the app without destroying its new data: `docker compose down`. Never run `docker compose down -v` on a database you want to keep.
 
@@ -54,7 +54,9 @@ flowchart LR
 - Host-assisted cross-source evidence research, search planning, visit/scraping bookkeeping, annotation/synthesis, quality checks, sourced market-sizing drafts, experiments, build plans and GTM workspaces.
 - Native Rust MCP bridge exposing 57 established tool names/input schemas with revocable user-scoped API keys.
 - Agent Research and MCP Integrations pages in the Next.js dashboard.
-- One-click account data deletion, short default Reddit evidence retention, PostgreSQL ownership constraints and API-key revocation.
+- Privacy & Settings workspace: research JSON export, per-evidence and per-project deletion, Reddit OAuth disconnect and provider token revocation, account deletion, and MCP API-key revocation.
+- Server-side same-origin CSRF guard for cookie-authenticated mutations, safe OAuth callback origin checks, hardened response headers, short default Reddit evidence retention, PostgreSQL ownership constraints and background-job recovery.
+- Shared PostgreSQL request budgets for Reddit Data API calls (default 30 requests/minute per app and 10 requests/minute per user), plus provider 429 backoff. These are conservative local limits, not permission to exceed Reddit's quotas.
 
 ## Connect a research host
 
@@ -81,7 +83,7 @@ Run the commands in separate terminals. The Next.js development server proxies `
 
 ## Testing
 
-Continuous integration runs Rust compilation and tests, Next.js typecheck/build, Docker Compose validation and live PostgreSQL + Rust + Next.js MCP integration, including ownership boundaries and research workflows.
+Continuous integration runs Rust compilation and tests, Next.js typecheck/build, Docker Compose validation and live PostgreSQL + Rust + Next.js MCP integration, including ownership boundaries, CSRF rejection, JSON export, authorized deletion and research workflows.
 
 ```bash
 cd api && cargo check --all-targets && cargo test
@@ -93,7 +95,7 @@ cd web && npm install && npm run typecheck && npm run build
 - **Reddit OAuth must be tested with a real, approved Reddit app** before enabling live collection. OAuth does not grant unrestricted scraping, bulk data access or commercial rights. Respect Reddit's terms and deletion requirements.
 - The 57 MCP names and input schemas are implemented in Rust; some behaviors and result shapes differ from the older system. Legacy parity is not guaranteed.
 - A host supplies its own browsing and model reasoning. Source text is untrusted data, not executable instructions. No embedded LLM API or autonomous browsing bypass is included.
-- External-account security review, production data-deletion reconciliation, high-concurrency testing and deployment hardening remain required before public release.
+- External-account security review, real OAuth/revocation tests, production content-deletion reconciliation, high-concurrency/load testing and deployment hardening remain required before public release.
 - No historical MongoDB data is imported. This is a **fresh PostgreSQL application**. The former JavaScript implementation remains accessible in Git history.
 
 Further details: [Architecture](docs/ARCHITECTURE.md) and [MCP integration](docs/MCP.md).

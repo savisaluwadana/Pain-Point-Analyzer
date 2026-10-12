@@ -1,5 +1,5 @@
 use crate::{oauth,reddit,scoring::{self,EvidenceText},AppState,ApiResult,bad,internal};
-use axum::{extract::{Query,State},http::{HeaderMap,header::{SET_COOKIE},HeaderValue},response::{IntoResponse,Response},Json};
+use axum::{extract::{Path,Query,State},http::{HeaderMap,header::{SET_COOKIE,CACHE_CONTROL,CONTENT_DISPOSITION},HeaderValue},response::{IntoResponse,Response},Json};
 use chrono::{DateTime,Utc};
 use serde::{Deserialize,Serialize};
 use serde_json::{json,Value};
@@ -21,6 +21,14 @@ pub async fn create_project(State(st):State<AppState>,headers:HeaderMap,Json(bod
     .bind(uid).bind(body.name.trim()).bind(body.description.unwrap_or_default().chars().take(2000).collect::<String>()).fetch_one(&st.db).await.map_err(internal)?;
  Ok(Json(data))
 }
+pub async fn delete_project(State(st):State<AppState>,headers:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Json<Value>>{
+ let uid=oauth::user_id(&st,&headers).await?;
+ let count=sqlx::query("DELETE FROM projects WHERE owner_id=$1 AND id=$2")
+  .bind(uid).bind(id).execute(&st.db).await.map_err(internal)?.rows_affected();
+ if count==0{return Err(crate::ApiError(axum::http::StatusCode::NOT_FOUND,"Project not found".into()));}
+ Ok(Json(json!({"deleted":true,"project_id":id,"notice":"Project deleted. Associated evidence and reports were preserved as unassigned."})))
+}
+
 #[derive(Deserialize)]
 pub struct EvidenceInput {source_kind:String,source_id:String,source_url:String,title:Option<String>,body:Option<String>,project_id:Option<Uuid>}
 #[derive(Serialize,FromRow)]
@@ -48,6 +56,7 @@ pub async fn ingest_evidence(State(st):State<AppState>,headers:HeaderMap,Json(bo
  if !body.source_url.is_empty(){
    let u=url::Url::parse(&body.source_url).map_err(|_|bad("Source URL must use http or https"))?;
    if !matches!(u.scheme(),"https"|"http"){return Err(bad("Source URL must use http or https"));}
+   if reddit::is_reddit_host(u.host_str().unwrap_or("")){return Err(bad("Import Reddit evidence through the approved OAuth connector"));}
  }
  let title=body.title.unwrap_or_default().chars().take(500).collect::<String>();
  let text=body.body.unwrap_or_default().chars().take(10000).collect::<String>();
@@ -59,6 +68,10 @@ pub async fn ingest_evidence(State(st):State<AppState>,headers:HeaderMap,Json(bo
 pub struct ScanInput {subreddit:String,project_id:Option<Uuid>,limit:Option<i32>}
 pub(crate) async fn persist_posts(st:&AppState,uid:Uuid,posts:Vec<reddit::RedditPost>,project:Option<Uuid>)->ApiResult<usize>{
  let mut tx=st.db.begin().await.map_err(internal)?;
+ // Serialize with disconnect so an in-flight API collection cannot recreate deleted evidence.
+ let authorized:Option<bool>=sqlx::query_scalar("SELECT true FROM reddit_credentials WHERE user_id=$1 FOR SHARE")
+  .bind(uid).fetch_optional(&mut *tx).await.map_err(internal)?;
+ if authorized.is_none(){return Err(crate::unauthorized());}
  let count=posts.len();
  for post in posts{
    let url=format!("https://www.reddit.com{}",post.permalink);
@@ -115,11 +128,56 @@ pub async fn opportunities(State(st):State<AppState>,headers:HeaderMap)->ApiResu
  let rows=sqlx::query_as("SELECT id,title,problem,score,evidence_refs,created_at FROM opportunities WHERE owner_id=$1 ORDER BY score DESC,created_at DESC LIMIT 100").bind(uid).fetch_all(&st.db).await.map_err(internal)?;
  Ok(Json(rows))
 }
+
+pub async fn delete_evidence(State(st):State<AppState>,headers:HeaderMap,Path(id):Path<Uuid>)->ApiResult<Json<Value>>{
+ let uid=oauth::user_id(&st,&headers).await?;
+ let count=sqlx::query("DELETE FROM evidence WHERE id=$1 AND owner_id=$2")
+  .bind(id).bind(uid).execute(&st.db).await.map_err(internal)?.rows_affected();
+ if count==0{return Err(crate::ApiError(axum::http::StatusCode::NOT_FOUND,"Evidence not found".into()));}
+ Ok(Json(json!({"deleted":true,"id":id,"notice":"Previously saved research runs are snapshots and will not be recalculated automatically."})))
+}
+pub async fn export_data(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Response>{
+ let uid=oauth::user_id(&st,&headers).await?;
+ let name:String=sqlx::query_scalar("SELECT reddit_username FROM users WHERE id=$1")
+  .bind(uid).fetch_one(&st.db).await.map_err(internal)?;
+ let projects:Vec<Value>=sqlx::query_scalar(
+   "SELECT to_jsonb(t) FROM (SELECT id,name,description,created_at FROM projects WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")
+  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+ let evidence:Vec<Value>=sqlx::query_scalar(
+   "SELECT to_jsonb(t) FROM (SELECT id,project_id,source_kind,source_id,source_url,CASE WHEN source_kind IN ('reddit','reddit-comment') THEN NULL ELSE title END AS title,CASE WHEN source_kind IN ('reddit','reddit-comment') THEN NULL ELSE body END AS body,published_at,collected_at,metadata FROM evidence WHERE owner_id=$1 ORDER BY collected_at DESC LIMIT 5001) t")
+  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+ let runs:Vec<Value>=sqlx::query_scalar(
+   "SELECT to_jsonb(t) FROM (SELECT id,project_id,topic,report,status,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")
+  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+ let opportunities:Vec<Value>=sqlx::query_scalar(
+   "SELECT to_jsonb(t) FROM (SELECT id,run_id,title,problem,score,evidence_refs,created_at FROM opportunities WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")
+  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+ let records:Vec<Value>=sqlx::query_scalar(
+   "SELECT to_jsonb(t) FROM (SELECT kind,id,payload,created_at,updated_at FROM mcp_records WHERE owner_id=$1 ORDER BY updated_at DESC LIMIT 5001) t")
+  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+ let truncated=projects.len()>5000||evidence.len()>5000||runs.len()>5000||opportunities.len()>5000||records.len()>5000;
+ let take=|mut items:Vec<Value>|{items.truncate(5000);items};
+ let mut response=Json(json!({
+  "format":"pain-intelligence-lab-v1",
+  "exported_at":Utc::now().to_rfc3339(),
+  "account":{"id":uid,"reddit_username":name},
+  "projects":take(projects),"evidence":take(evidence),
+  "research_runs":take(runs),"opportunities":take(opportunities),"host_records":take(records),
+  "truncated":truncated,
+  "notes":["OAuth tokens, user sessions, MCP API secrets and Reddit post/comment body text are excluded","Each collection is limited to 5000 records; if truncated=true, contact the operator for a full export"]
+ })).into_response();
+ response.headers_mut().insert(CACHE_CONTROL,HeaderValue::from_static("private, no-store"));
+ response.headers_mut().insert(CONTENT_DISPOSITION,HeaderValue::from_static("attachment; filename=\"pain-intelligence-export.json\""));
+ Ok(response)
+}
+
 pub async fn delete_data(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Response>{
  let uid=oauth::user_id(&st,&headers).await?;
+ let revoked=match oauth::revoke_reddit(&st,uid).await {Ok(v)=>v,Err(err)=>{tracing::warn!(error=%err.1,"Deleting local data even though remote revocation could not be verified");false}};
  sqlx::query("DELETE FROM users WHERE id=$1").bind(uid).execute(&st.db).await.map_err(internal)?;
- let mut response=Json(json!({"deleted":true,"action":"Your stored account, credentials, evidence, research and sessions were deleted"})).into_response();
+ let mut response=Json(json!({"deleted":true,"provider_token_revocation_confirmed":revoked,"action":"Your stored account, credentials, evidence, research and sessions were deleted. If provider revocation was not confirmed, revoke the app in Reddit settings."})).into_response();
  response.headers_mut().insert(SET_COOKIE,HeaderValue::from_static("pil_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"));
+ response.headers_mut().insert(CACHE_CONTROL,HeaderValue::from_static("private, no-store"));
  Ok(response)
 }
 
@@ -131,6 +189,10 @@ pub async fn thread(State(st):State<AppState>,headers:HeaderMap,Json(body):Json<
  let comments=reddit::fetch_comments(&st,uid,&body.post_id,body.limit.unwrap_or(50).clamp(1,100)).await?;
  let count=comments.len();
  let mut tx=st.db.begin().await.map_err(internal)?;
+ // Prevent in-flight thread collection from recreating Reddit content after a disconnect.
+ let authorized:Option<bool>=sqlx::query_scalar("SELECT true FROM reddit_credentials WHERE user_id=$1 FOR SHARE")
+  .bind(uid).fetch_optional(&mut *tx).await.map_err(internal)?;
+ if authorized.is_none(){return Err(crate::unauthorized());}
  for item in comments{
    let source_id=format!("{}:t1_{}",body.post_id,item.id);
    let url=if item.permalink.starts_with('/') {format!("https://www.reddit.com{}",item.permalink)}else{format!("https://www.reddit.com/comments/{}",body.post_id)};

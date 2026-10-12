@@ -44,9 +44,60 @@ call submit_build_spec "{\"workspace_id\":\"$workspace\",\"product_name\":\"Work
 call submit_gtm_plan "{\"workspace_id\":\"$workspace\",\"offer\":\"Design partner pilot\"}" | jq -e '.workspace.gtm_plan.offer == "Design partner pilot"' >/dev/null
 call set_opportunity_stage "{\"workspace_id\":\"$workspace\",\"stage\":\"building\"}" | jq -e '.workspace.stage == "building"' >/dev/null
 printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | docker compose exec -T -e "PAIN_MCP_API_KEY=$token" -e PAIN_PLATFORM_API_URL=http://web:3000 api /usr/local/bin/pain-intelligence-api --mcp | jq -e '.result.tools | length == 57' >/dev/null
+# Browser session mutations require an exact same-origin Origin header.
+session='local_integration_cookie_do_not_use'
+session_hash="$(printf '%s' "$session" | sha256sum | cut -c1-64)"
+sql "INSERT INTO user_sessions(token_hash,user_id,expires_at) VALUES('$session_hash','$owner',now()+interval '1 day')" >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/projects" \
+  -H "Cookie: pil_session=$session" -H 'Origin: https://evil.example' \
+  -H 'Content-Type: application/json' --data '{"name":"blocked project"}')" = 403
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/projects" \
+  -H "Cookie: pil_session=$session" \
+  -H 'Content-Type: application/json' --data '{"name":"missing origin"}')" = 403
+curl --fail-with-body -sS -X POST "$api/projects" -H "Cookie: pil_session=$session" \
+  -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  --data '{"name":"Permitted research project"}' | jq -e '.name == "Permitted research project"' >/dev/null
+test "$(sql "SELECT count(*) FROM information_schema.tables WHERE table_name='reddit_api_budgets'")" = 1
+# Deleting a project reassigns its evidence (rather than deleting unrelated research).
+project_id="$(curl --fail-with-body -sS "$api/projects" -H "Cookie: pil_session=$session" | jq -r '.[0].id')"
+curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
+  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
+curl --fail-with-body -sS "$api/privacy/export" -H "Cookie: pil_session=$session" | \
+  jq -e '.account.reddit_username == "ci-researcher" and (.projects|length) == 0 and (.host_records|length) >= 2 and .truncated == false' >/dev/null
+# Revocable API credentials are shown only once; revoked credentials cannot call tools.
+issued="$(curl --fail-with-body -sS -X POST "$api/mcp/keys" \
+ -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' \
+ -H 'Content-Type: application/json' --data '{"label":"CI temporary MCP client"}')"
+issued_secret="$(printf '%s' "$issued" | jq -r '.api_key')"
+issued_id="$(printf '%s' "$issued" | jq -r '.id')"
+[[ "$issued_secret" == pil_* ]]
+curl --fail-with-body -sS "$api/mcp/keys" -H "Cookie: pil_session=$session" | \
+ jq -e '.[] | select(.label=="CI temporary MCP client") | .id' >/dev/null
+curl --fail-with-body -sS -X DELETE "$api/mcp/keys/$issued_id" -H "Cookie: pil_session=$session" \
+ -H 'Origin: http://localhost:3000' | jq -e '.revoked == true' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/mcp/execute" \
+ -H "Authorization: Bearer $issued_secret" -H 'Content-Type: application/json' \
+ --data '{"name":"platform_status","arguments":{}}')" = 401
 other="$(sql "INSERT INTO users(reddit_id,reddit_username) VALUES('ci-other-id','ci-other') ON CONFLICT (reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id")"
 other_token='pil_other_user_key'
 other_hash="$(printf '%s' "$other_token" | sha256sum | cut -c1-64)"
 sql "INSERT INTO mcp_api_keys(owner_id,key_hash,label) VALUES('$other','$other_hash','Second account')" >/dev/null
 curl --fail-with-body -sS "$api/mcp/execute" -H "Authorization: Bearer $other_token" -H 'Content-Type: application/json' --data '{"name":"search_evidence","arguments":{"q":"spreadsheets"}}' | jq -e '.returned == 0' >/dev/null
+# Corrupted or expired stored credentials must not block local source-data deletion.
+sql "INSERT INTO reddit_credentials(user_id,access_token_ciphertext,expires_at) VALUES('$owner','invalid-local-test-token',now()+interval '1 hour')" >/dev/null
+curl --fail-with-body -sS "$api/auth/reddit/disconnect" -X POST -H "Cookie: pil_session=$session" \
+  -H 'Origin: http://localhost:3000' | jq -e '.disconnected == true and .provider_token_revoked == false' >/dev/null
+test "$(sql "SELECT count(*) FROM reddit_credentials WHERE user_id='$owner'")" = 0
+curl --fail-with-body -sS "$api/me" -H "Cookie: pil_session=$session" | \
+  jq -e '.reddit_connected == false' >/dev/null
+evidence_id="$(call search_evidence '{"q":"spreadsheets"}' | jq -r '.items[0].id')"
+curl --fail-with-body -sS "$api/evidence/$evidence_id" -X DELETE \
+  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
+call search_evidence '{"q":"spreadsheets"}' | jq -e '.returned == 0' >/dev/null
+curl --fail-with-body -sS "$api/privacy/delete-data" -X POST \
+  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/me" -H "Cookie: pil_session=$session")" = 401
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/mcp/execute" \
+  -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
+  --data '{"name":"platform_status","arguments":{}}')" = 401
 echo "Rust MCP integration: authorized workflows, 57 schemas, and tenant isolation passed."

@@ -28,8 +28,16 @@ pub async fn create_key(State(st):State<AppState>,headers:HeaderMap,Json(req):Js
  if label.is_empty()||label.len()>100{return Err(bad("Key label must be 1-100 characters"));}
  let mut bits=[0u8;32]; OsRng.fill_bytes(&mut bits);
  let secret=format!("pil_{}",URL_SAFE_NO_PAD.encode(bits));
+ let mut tx=st.db.begin().await.map_err(internal)?;
+ // Serialize credential issuance for this account to prevent key-sprawl races.
+ let _:Uuid=sqlx::query_scalar("SELECT id FROM users WHERE id=$1 FOR UPDATE")
+  .bind(owner).fetch_one(&mut *tx).await.map_err(internal)?;
+ let active:i64=sqlx::query_scalar("SELECT count(*) FROM mcp_api_keys WHERE owner_id=$1 AND revoked_at IS NULL")
+  .bind(owner).fetch_one(&mut *tx).await.map_err(internal)?;
+ if active>=20{return Err(ApiError(StatusCode::TOO_MANY_REQUESTS,"Revoke an existing API key before creating more than 20 active keys".into()));}
  let id:Uuid=sqlx::query_scalar("INSERT INTO mcp_api_keys(owner_id,key_hash,label) VALUES($1,$2,$3) RETURNING id")
-  .bind(owner).bind(digest(&secret)).bind(label).fetch_one(&st.db).await.map_err(internal)?;
+  .bind(owner).bind(digest(&secret)).bind(label).fetch_one(&mut *tx).await.map_err(internal)?;
+ tx.commit().await.map_err(internal)?;
  Ok(Json(json!({"id":id,"label":label,"api_key":secret,"notice":"Copy this key now; it will not be shown again."})))
 }
 #[derive(Serialize,FromRow)]
