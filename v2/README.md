@@ -69,9 +69,9 @@ Every stateful endpoint other than OAuth start/callback and health requires the 
 2. In `v2/migrate`, run `npm install`, set `MONGO_URI`, `POSTGRES_DATABASE_URL` and `TARGET_REDDIT_USERNAME`.
 3. Run `npm run import` for a read-only source count.
 4. Review source collection retention/PII and ensure import is authorized, then run `npm run import -- --apply`.
-5. Verify `legacy_records` counts against all old collections, and inspect projected projects/evidence. Every legacy record is preserved in owner-scoped JSONB with its collection and original ID; legacy Reddit entries are marked **legacy-reddit**, not newly OAuth-collected.
+5. Run `npm run verify` to compare every MongoDB collection count with its PostgreSQL archival counterpart. Inspect projected projects/evidence. Every legacy record is preserved in owner-scoped JSONB with its collection and original ID; legacy Reddit entries are marked **legacy-reddit**, not newly OAuth-collected.
 6. Compare representative historical runs, snapshots, clusters, quality assessments and MCP outputs against v1 before approving a cutover. Those features are **archived**, not all yet reconstructed as native v2 workflows.
-7. Keep both backups and v1 available until reconciliation and rollback tests pass.
+7. Keep both backups and v1 available until strict reconciliation, output-parity and rollback tests pass. A complete archival count alone is not proof that all old workflows operate in the new data model.
 
 The archival table can contain personal information and old research data. Only import records you have rights to retain, protect backups and use the account deletion endpoint when appropriate.
 
