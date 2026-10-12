@@ -1,0 +1,7 @@
+{
+  "name":"pain-intelligence-migration",
+  "private":true,
+  "type":"module",
+  "scripts":{"import":"node import-mongo.mjs"},
+  "dependencies":{"mongodb":"^6.20.0","pg":"^8.16.0"}
+}
