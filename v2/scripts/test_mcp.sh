@@ -28,6 +28,21 @@ call submit_llm_annotations "{\"run_id\":\"$run\",\"annotations\":[{\"evidence_i
 call submit_llm_synthesis "{\"run_id\":\"$run\",\"clusters\":[{\"cluster_id\":\"manual-reports\",\"label\":\"Manual reporting\",\"problem_statement\":\"Workaround burden\",\"evidence_ids\":[\"$evidence_id\"]}],\"opportunities\":[{\"opportunity_id\":\"reporting-saas\",\"title\":\"Reporting workflow automation\",\"problem\":\"Manual work\",\"cluster_ids\":[\"manual-reports\"],\"evidence_ids\":[\"$evidence_id\"],\"opportunity_score\":30}]}" | jq -e '.run.status == "synthesized"' >/dev/null
 workspace="$(call create_opportunity_workspace "{\"run_id\":\"$run\",\"opportunity_id\":\"reporting-saas\"}" | jq -r '.workspace.workspace_id')"
 call get_opportunity_execution_pack "{\"workspace_id\":\"$workspace\"}" | jq -e '.workspace.stage == "discovery"' >/dev/null
+call claim_research_job '{}' | jq -e '.job == null' >/dev/null
+call start_scrape_session "{\"job_id\":\"$job\"}" | jq -e '.session.status == "running"' >/dev/null
+call add_scrape_candidates "{\"job_id\":\"$job\",\"candidates\":[{\"url\":\"https://example.com/review-one\"}]}" | jq -e '.session.candidates | length == 1' >/dev/null
+call get_next_scrape_batch "{\"job_id\":\"$job\",\"limit\":1}" | jq -e '.batch | length == 1' >/dev/null
+call record_scrape_page_result "{\"job_id\":\"$job\",\"url\":\"https://example.com/review-one\",\"evidence_added\":1}" | jq -e '.session.pages | length == 1' >/dev/null
+call get_scrape_session_summary "{\"job_id\":\"$job\"}" | jq -e '.pages | length == 1' >/dev/null
+call get_research_quality_summary "{\"run_id\":\"$run\"}" | jq -e '.clusters == 1' >/dev/null
+call get_market_sizing_pack "{\"run_id\":\"$run\"}" | jq -e '.opportunities | length == 1' >/dev/null
+call submit_market_sizing_assessment "{\"run_id\":\"$run\",\"opportunity_id\":\"reporting-saas\",\"sources\":[{\"url\":\"https://example.com/pricing\"}]}" | jq -e '.sizing.opportunity_id == "reporting-saas"' >/dev/null
+call submit_opportunity_strategy "{\"workspace_id\":\"$workspace\",\"icp\":\"Small operations teams\",\"wedge\":\"Faster recurring reports\"}" | jq -e '.workspace.strategy.icp == "Small operations teams"' >/dev/null
+experiment="$(call create_validation_experiment "{\"workspace_id\":\"$workspace\",\"type\":\"customer-interviews\",\"hypothesis\":\"Teams need it\"}" | jq -r '.experiment_id')"
+call record_validation_result "{\"workspace_id\":\"$workspace\",\"experiment_id\":\"$experiment\",\"verdict\":\"supports\",\"status\":\"complete\"}" | jq -e '.workspace.experiments[0].verdict == "supports"' >/dev/null
+call submit_build_spec "{\"workspace_id\":\"$workspace\",\"product_name\":\"Workflow Report\",\"one_liner\":\"Eliminate reporting drudgery\"}" | jq -e '.workspace.build_spec.product_name == "Workflow Report"' >/dev/null
+call submit_gtm_plan "{\"workspace_id\":\"$workspace\",\"offer\":\"Design partner pilot\"}" | jq -e '.workspace.gtm_plan.offer == "Design partner pilot"' >/dev/null
+call set_opportunity_stage "{\"workspace_id\":\"$workspace\",\"stage\":\"building\"}" | jq -e '.workspace.stage == "building"' >/dev/null
 printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | docker compose exec -T -e "PAIN_MCP_API_KEY=$token" -e PAIN_PLATFORM_API_URL=http://web:3000 api /usr/local/bin/pain-intelligence-api --mcp | jq -e '.result.tools | length == 57' >/dev/null
 other="$(sql "INSERT INTO users(reddit_id,reddit_username) VALUES('ci-other-id','ci-other') ON CONFLICT (reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id")"
 other_token='pil_other_user_key'
