@@ -83,8 +83,11 @@ other_token='pil_other_user_key'
 other_hash="$(printf '%s' "$other_token" | sha256sum | cut -c1-64)"
 sql "INSERT INTO mcp_api_keys(owner_id,key_hash,label) VALUES('$other','$other_hash','Second account')" >/dev/null
 curl --fail-with-body -sS "$api/mcp/execute" -H "Authorization: Bearer $other_token" -H 'Content-Type: application/json' --data '{"name":"search_evidence","arguments":{"q":"spreadsheets"}}' | jq -e '.returned == 0' >/dev/null
+# Corrupted or expired stored credentials must not block local source-data deletion.
+sql "INSERT INTO reddit_credentials(user_id,access_token_ciphertext,expires_at) VALUES('$owner','invalid-local-test-token',now()+interval '1 hour')" >/dev/null
 curl --fail-with-body -sS "$api/auth/reddit/disconnect" -X POST -H "Cookie: pil_session=$session" \
   -H 'Origin: http://localhost:3000' | jq -e '.disconnected == true and .provider_token_revoked == false' >/dev/null
+test "$(sql "SELECT count(*) FROM reddit_credentials WHERE user_id='$owner'")" = 0
 curl --fail-with-body -sS "$api/me" -H "Cookie: pil_session=$session" | \
   jq -e '.reddit_connected == false' >/dev/null
 evidence_id="$(call search_evidence '{"q":"spreadsheets"}' | jq -r '.items[0].id')"

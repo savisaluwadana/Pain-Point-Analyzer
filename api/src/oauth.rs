@@ -139,7 +139,10 @@ pub(crate) async fn revoke_reddit(st:&AppState,id:Uuid)->ApiResult<bool>{
 }
 pub async fn disconnect(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<serde_json::Value>>{
   let id=user_id(&st,&headers).await?;
-  let remote_revoked=revoke_reddit(&st,id).await?;
+  let remote_revoked=match revoke_reddit(&st,id).await {
+    Ok(revoked)=>revoked,
+    Err(err)=>{tracing::warn!(error=%err.1,"Reddit revocation not confirmed; completing local disconnect");false}
+  };
   let mut tx=st.db.begin().await.map_err(internal)?;
   // Revoke permission to execute any pending or currently leased Reddit API collections.
   sqlx::query("DELETE FROM research_jobs WHERE owner_id=$1")
@@ -153,7 +156,7 @@ pub async fn disconnect(State(st):State<AppState>,headers:HeaderMap)->ApiResult<
    "disconnected":true,
    "provider_token_revoked":remote_revoked,
    "reddit_evidence_deleted":true,
-   "notice":"Historical research summaries and host-supplied annotations may still reference deleted Reddit evidence IDs. To erase all research and account data, use Delete account."
+   "notice":"Local Reddit access and source data are removed. If provider revocation is unconfirmed, revoke this app in Reddit settings. Research snapshots/annotations may still reference deleted evidence IDs; delete the account to erase them."
   })))
 }
 
