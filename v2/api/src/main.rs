@@ -90,6 +90,7 @@ async fn main()->anyhow::Result<()> {
       .route("/api/projects",get(research::projects).post(research::create_project))
       .route("/api/evidence",get(research::evidence).post(research::ingest_evidence))
       .route("/api/research/scan",post(research::scan))
+      .route("/api/research/thread",post(research::thread))
       .route("/api/research/analyze",post(research::analyze))
       .route("/api/research/runs",get(research::runs))
       .route("/api/research/jobs",get(jobs::list).post(jobs::create))
