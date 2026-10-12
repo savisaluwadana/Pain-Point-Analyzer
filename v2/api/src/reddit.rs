@@ -74,3 +74,47 @@ mod tests {
  use super::*;
  #[test] fn bounded_names(){assert!(subreddit_ok("rust"));assert!(!subreddit_ok("rust/path"));assert!(!id_ok("../secret"));}
 }
+
+#[derive(Serialize,Deserialize,Clone)]
+pub(crate) struct RedditComment {
+ pub id:String,pub body:String,pub author:String,pub permalink:String,
+ pub score:i64,pub created_utc:f64,
+}
+fn flatten_comments(node:&Value,out:&mut Vec<RedditComment>,limit:usize,depth:u8){
+ if depth>=8||out.len()>=limit{return;}
+ if let Some(children)=node.pointer("/data/children").and_then(Value::as_array){
+  for child in children{
+   if out.len()>=limit{break;}
+   if child.get("kind").and_then(Value::as_str)!=Some("t1"){continue;}
+   let data=&child["data"];
+   let id=data["id"].as_str().unwrap_or_default();
+   let body=data["body"].as_str().unwrap_or_default();
+   if id_ok(id)&&!body.is_empty()&&body!="[deleted]"&&body!="[removed]"{
+      out.push(RedditComment{
+        id:id.to_owned(),body:body.chars().take(10000).collect(),
+        author:data["author"].as_str().unwrap_or_default().to_owned(),
+        permalink:data["permalink"].as_str().unwrap_or_default().to_owned(),
+        score:data["score"].as_i64().unwrap_or(0),
+        created_utc:data["created_utc"].as_f64().unwrap_or(0.0)
+      });
+   }
+   if data["replies"].is_object(){flatten_comments(&data["replies"],out,limit,depth+1);}
+  }
+ }
+}
+pub(crate) async fn fetch_comments(st:&AppState,user:Uuid,post_id:&str,limit:usize)->ApiResult<Vec<RedditComment>>{
+ if !id_ok(post_id){return Err(bad("Invalid post ID"));}
+ let payload=reddit_get(st,user,&format!("/comments/{post_id}"),vec![("limit",limit.min(100).to_string()),("raw_json","1".into())]).await?;
+ let mut comments=Vec::new();
+ if let Some(list)=payload.get(1){flatten_comments(list,&mut comments,limit.min(100),0);}
+ Ok(comments)
+}
+#[cfg(test)]
+mod comment_tests {
+ use super::*;
+ #[test] fn nested_comments_are_bounded_and_exclude_deleted(){
+  let value=serde_json::json!({"data":{"children":[{"kind":"t1","data":{"id":"abc","body":"manual workaround","replies":{"data":{"children":[{"kind":"t1","data":{"id":"def","body":"[deleted]"}}]}}}},{"kind":"more","data":{"id":"ghi"}}]}});
+  let mut out=Vec::new();flatten_comments(&value,&mut out,25,0);
+  assert_eq!(out.len(),1);assert_eq!(out[0].id,"abc");
+ }
+}
