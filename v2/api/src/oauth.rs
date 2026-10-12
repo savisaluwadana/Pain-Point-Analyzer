@@ -139,8 +139,8 @@ pub(crate) async fn access_token(st:&AppState,id:Uuid)->ApiResult<String>{
 #[cfg(test)]
 mod tests {
  use super::*;
- #[test]
- fn token_encryption_round_trip() {
+ #[tokio::test]
+ async fn token_encryption_round_trip() {
    let db=sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://test:test@localhost/test").unwrap();
    let cfg=crate::Config{
      client_id:String::new(),client_secret:String::new(),
