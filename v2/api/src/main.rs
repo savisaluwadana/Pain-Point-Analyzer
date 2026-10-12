@@ -1,4 +1,5 @@
 mod jobs;
+mod mcp;
 mod oauth;
 mod reddit;
 mod research;
@@ -73,6 +74,7 @@ async fn health(axum::extract::State(st):axum::extract::State<AppState>)->impl I
 #[tokio::main]
 async fn main()->anyhow::Result<()> {
     dotenvy::dotenv().ok();
+    if std::env::args().any(|s|s == "--mcp") { return mcp::stdio().await; }
     tracing_subscriber::fmt().with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_|EnvFilter::new("info"))).init();
     let cfg=config()?;
     let db=PgPoolOptions::new().max_connections(10).acquire_timeout(Duration::from_secs(10)).connect(&env::var("DATABASE_URL")?).await?;
@@ -81,6 +83,9 @@ async fn main()->anyhow::Result<()> {
     let st=AppState{db,http,cfg:Arc::new(cfg)};
     let app=Router::new()
       .route("/api/health",get(health))
+      .route("/api/mcp/keys",get(mcp::state::list_keys).post(mcp::state::create_key))
+      .route("/api/mcp/keys/{id}",axum::routing::delete(mcp::state::revoke_key))
+      .route("/api/mcp/execute",post(mcp::execute))
       .route("/api/auth/reddit/start",get(oauth::start))
       .route("/api/auth/reddit/callback",get(oauth::callback))
       .route("/api/auth/logout",post(oauth::logout))
