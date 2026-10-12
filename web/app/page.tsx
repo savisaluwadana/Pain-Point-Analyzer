@@ -1,7 +1,7 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
 
-type User={id:string;reddit_username:string};
+type User={id:string;reddit_username:string;reddit_connected:boolean};
 type Project={id:string;name:string;description:string;created_at:string};
 type Evidence={id:string;source_kind:string;source_id:string;source_url:string;title:string;body:string;collected_at:string};
 type Cluster={category:string;independent_stories:number;evidence_count:number;severity_score:number;examples:string[]};
@@ -44,7 +44,7 @@ export default function Home(){
  const [projectName,setProjectName]=useState('');
  const [busy,setBusy]=useState(false);
  const [notice,setNotice]=useState('');
- const [tab,setTab]=useState<'discover'|'evidence'|'opportunities'|'jobs'|'integrations'|'agents'>('discover');
+ const [tab,setTab]=useState<'discover'|'evidence'|'opportunities'|'jobs'|'integrations'|'agents'|'settings'>('discover');
 
  const load=useCallback(async()=>{
    try {
@@ -72,7 +72,7 @@ export default function Home(){
     <p className="sidebar-caption">Turn conversations into evidence. Turn evidence into decisions.</p>
     <div className="side-section">WORKSPACE</div>
     <nav aria-label="Research navigation">
-      {([['discover','◉','Overview'],['evidence','≡','Evidence Library'],['opportunities','◇','Opportunities'],['jobs','↻','Research Jobs'],['agents','♧','Agent Research'],['integrations','⌘','MCP Integrations']] as const).map(([key,icon,label])=>
+      {([['discover','◉','Overview'],['evidence','≡','Evidence Library'],['opportunities','◇','Opportunities'],['jobs','↻','Research Jobs'],['agents','♧','Agent Research'],['integrations','⌘','MCP Integrations'],['settings','⚙','Privacy & Settings']] as const).map(([key,icon,label])=>
         <button key={key} onClick={()=>setTab(key)} className={'side-link '+(tab===key?'active':'')}><span>{icon}</span>{label}</button>)}
     </nav>
     <div className="sidebar-bottom"><span className="status-dot" /> Rust + PostgreSQL
@@ -81,13 +81,14 @@ export default function Home(){
   </aside>
   <main className="main">
    <header className="topbar"><span>INTELLIGENCE WORKSPACE <span className="sep">/</span> {tab.toUpperCase()}</span>
-     <div className="identity">{user?<><span className="avatar">{user.reddit_username.slice(0,1).toUpperCase()}</span><b>u/{user.reddit_username}</b><button onClick={()=>void act(()=>api('/auth/logout',{method:'POST'}).then(()=>{setUser(null);setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);}), 'Disconnected')}>Sign out</button></>:<a className="connect" href="/api/auth/reddit/start">Connect Reddit →</a>}</div>
+     <div className="identity">{user?<><span className="avatar">{user.reddit_username.slice(0,1).toUpperCase()}</span><b>u/{user.reddit_username}</b>{!user.reddit_connected&&<a className="connect" href="/api/auth/reddit/start">Reconnect Reddit</a>}<button onClick={()=>void act(()=>api('/auth/logout',{method:'POST'}).then(()=>{setUser(null);setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);}), 'Disconnected')}>Sign out</button></>:<a className="connect" href="/api/auth/reddit/start">Connect Reddit →</a>}</div>
    </header>
    <section className="intro"><div><div className="eyebrow">RESEARCH SYSTEM / V2</div><h1>Find the problem <em>worth solving.</em></h1>
      <p>Collect authorized customer evidence, uncover recurring frustrations, and build a defensible picture of product opportunities.</p>
    </div><span className="edition">EVIDENCE-FIRST RESEARCH</span></section>
    {notice&&<div className="notice" role="status">{notice}</div>}
    {!user&&<div className="notice">Connect an approved Reddit account to access the private research workspace. API approval and app registration are required.</div>}
+   {user&&!user.reddit_connected&&<div className="notice">Reddit is disconnected. Your existing non-Reddit research remains available; reconnect to collect Reddit posts and comments.</div>}
    <section className="stats">
      {[['Evidence captured',items.length.toString(),'Independent observations'],['Research runs',runs.length.toString(),'Stored analyses'],['Opportunities',opportunities.length.toString(),'Require human validation'],['Research jobs',jobs.length.toString(),'Queue and history']].map(([label,value,caption])=><div className="stat" key={label}><span>{label}</span><strong>{value}</strong><small>{caption}</small></div>)}
    </section>
@@ -114,7 +115,7 @@ export default function Home(){
      <label htmlFor="manualUrl">Source URL (optional)</label><input id="manualUrl" value={manualUrl} onChange={e=>setManualUrl(e.target.value)} placeholder="https://example.com/source"/>
      <label htmlFor="manualBody">What did the source say?</label><textarea id="manualBody" rows={4} value={manualBody} onChange={e=>setManualBody(e.target.value)} placeholder="Summarize relevant evidence without unnecessary personal details"/>
      <button className="primary" disabled={!user||busy||!manualTitle.trim()} onClick={()=>void act(async()=>{await api('/evidence',{method:'POST',body:JSON.stringify({source_kind:'manual',source_id:crypto.randomUUID(),source_url:manualUrl,title:manualTitle,body:manualBody,project_id})});setManualTitle('');setManualBody('');setManualUrl('');},'Evidence saved')}>Save evidence →</button>
-   </section><section className="panel"><div className="panel-heading"><span className="eyebrow">SOURCE LIBRARY</span><h2>Collected evidence</h2></div>{items.length?<div className="list">{items.map(e=><article key={e.id} className="list-item"><span className="pill">{e.source_kind}</span><h3>{e.title||e.source_id}</h3><p>{e.body.slice(0,260)}</p><a href={e.source_url} target="_blank" rel="noopener noreferrer">View source ↗</a></article>)}</div>:<p className="empty">No evidence collected.</p>}</section></>}
+   </section><section className="panel"><div className="panel-heading"><span className="eyebrow">SOURCE LIBRARY</span><h2>Collected evidence</h2></div>{items.length?<div className="list">{items.map(e=><article key={e.id} className="list-item"><span className="pill">{e.source_kind}</span><h3>{e.title||e.source_id}</h3><p>{e.body.slice(0,260)}</p>{e.source_url&&<a href={e.source_url} target="_blank" rel="noopener noreferrer">View source ↗</a>}<button className="tiny" disabled={busy} onClick={()=>{if(window.confirm('Delete this evidence item? Saved analysis reports are historical snapshots.')) void act(()=>api('/evidence/'+e.id,{method:'DELETE'}),'Evidence deleted');}}>Delete evidence</button></article>)}</div>:<p className="empty">No evidence collected.</p>}</section></>}
    {tab==='opportunities'&&<section className="panel"><div className="panel-heading"><span className="eyebrow">DISCOVERY SHORTLIST</span><h2>Research opportunities</h2><p>Prioritization signals are not proof of willingness to pay.</p></div>{opportunities.length?<div className="list">{opportunities.map(o=><article className="list-item" key={o.id}><div className="score">{Math.round(o.score)} / 100</div><h3>{o.title}</h3><p>{o.problem}</p><small>{o.evidence_refs.length} supporting references</small></article>)}</div>:<p className="empty">Complete an analysis to generate research candidates.</p>}</section>}
    {tab==='jobs'&&<section className="panel"><div className="panel-heading"><span className="eyebrow">AUTOMATION</span><h2>Background collection jobs</h2><p>Approved API access and a valid Reddit session are required.</p></div><button className="secondary" onClick={()=>void load()}>Refresh jobs</button>{jobs.length?<div className="list">{jobs.map(j=><article className="list-item job" key={j.id}><b>r/{j.subreddit}</b><span className="pill">{j.status}</span><small>Attempts: {j.attempts}</small>{j.last_error&&<p>{j.last_error}</p>}</article>)}</div>:<p className="empty">No jobs yet. Queue one from Overview.</p>}</section>}
    {tab==='agents'&&<div className="two-col">
@@ -138,6 +139,27 @@ export default function Home(){
      <pre className="command">cargo run --manifest-path api/Cargo.toml -- --mcp</pre>
      <p className="disclaimer">Requires a running web/API stack. The bridge exposes 57 original tool schemas. Execution is authenticated and all workflow data stays in your PostgreSQL workspace.</p>
     </div>
+   </section>}
+   {tab==='settings'&&<section className="panel">
+     <div className="panel-heading"><span className="eyebrow">ACCOUNT PRIVACY</span><h2>Your research data and Reddit access</h2><p>These controls operate on your account only. Research and account deletion cannot be undone.</p></div>
+     <div className="subpanel">
+       <h3>Export your research</h3><p>Download a JSON copy of your projects, evidence, saved analyses and opportunity workspaces. API credentials and Reddit post/comment text are excluded.</p>
+       {user?<a className="connect" href="/api/privacy/export" download="pain-intelligence-export.json">Download research JSON ↓</a>:<p>Sign in to download your research.</p>}
+     </div>
+     <div className="subpanel">
+       <h3>Disconnect Reddit</h3><p>Revoke this app's Reddit OAuth token, stop pending Reddit collections and delete stored Reddit posts and comments. Other projects, research summaries and MCP keys remain. To erase those too, delete the account.</p>
+       <button className="secondary" disabled={!user||!user.reddit_connected||busy} onClick={()=>{
+         if(window.confirm('Revoke Reddit access and delete stored Reddit post/comment evidence?'))
+           void act(()=>api('/auth/reddit/disconnect',{method:'POST'}),'Reddit disconnected and source evidence removed');
+       }}>Disconnect and revoke Reddit access</button>
+     </div>
+     <div className="subpanel">
+       <h3>Delete account and all stored data</h3><p>Delete this account, sessions, projects, evidence, research reports, opportunity workspaces and API keys. The service also attempts to revoke Reddit's token before deletion. If that fails, revoke the app manually in Reddit account settings.</p>
+       <button className="secondary" disabled={!user||busy} onClick={()=>{
+         if(window.confirm('Permanently delete your account and ALL its stored research data? This cannot be undone.'))
+           void act(()=>api('/privacy/delete-data',{method:'POST'}),'Your stored account data was deleted');
+       }}>Delete my account and data</button>
+     </div>
    </section>}
    <footer>PAIN INTELLIGENCE OS <span>© 2026 · Open-source research infrastructure</span></footer>
   </main>

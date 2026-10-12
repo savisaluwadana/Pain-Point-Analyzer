@@ -104,7 +104,9 @@ pub(crate) async fn user_id(st:&AppState,headers:&HeaderMap)->ApiResult<Uuid>{
 pub async fn me(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<serde_json::Value>>{
   let id=user_id(&st,&headers).await?;
   let name:String=sqlx::query_scalar("SELECT reddit_username FROM users WHERE id=$1").bind(id).fetch_one(&st.db).await.map_err(internal)?;
-  Ok(Json(json!({"id":id,"reddit_username":name})))
+  let reddit_connected:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM reddit_credentials WHERE user_id=$1)")
+    .bind(id).fetch_one(&st.db).await.map_err(internal)?;
+  Ok(Json(json!({"id":id,"reddit_username":name,"reddit_connected":reddit_connected})))
 }
 pub async fn logout(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Response>{
   if let Some(session)=cookie_value(&headers,"pil_session"){
