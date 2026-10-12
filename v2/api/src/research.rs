@@ -62,7 +62,7 @@ pub(crate) async fn persist_posts(st:&AppState,uid:Uuid,posts:Vec<reddit::Reddit
    sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,author,published_at,metadata) VALUES($1,$2,'reddit',$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET title=excluded.title,body=excluded.body,author=excluded.author,metadata=excluded.metadata,collected_at=now()")
     .bind(uid).bind(project).bind(format!("t3_{}",post.id)).bind(url)
     .bind(post.title.chars().take(500).collect::<String>()).bind(post.selftext.chars().take(10000).collect::<String>())
-    .bind(post.author).bind(published).bind(json!({"subreddit":post.subreddit,"score":post.score,"num_comments":post.num_comments}))
+    .bind(None::<String>).bind(published).bind(json!({"subreddit":post.subreddit,"score":post.score,"num_comments":post.num_comments}))
     .execute(&mut *tx).await.map_err(internal)?;
  }
  tx.commit().await.map_err(internal)?;
