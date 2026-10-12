@@ -135,3 +135,33 @@ pub(crate) async fn access_token(st:&AppState,id:Uuid)->ApiResult<String>{
     .bind(id).bind(encrypted).bind(replacement).bind(new_token.expires_in.max(1)).execute(&st.db).await.map_err(internal)?;
   Ok(new_token.access_token)
 }
+
+#[cfg(test)]
+mod tests {
+ use super::*;
+ #[test]
+ fn token_encryption_round_trip() {
+   let db=sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://test:test@localhost/test").unwrap();
+   let cfg=crate::Config{
+     client_id:String::new(),client_secret:String::new(),
+     redirect_uri:"http://localhost:3000/api/auth/reddit/callback".into(),
+     web_url:"http://localhost:3000".into(),user_agent:"test".into(),
+     encryption_key:[7u8;32],reddit_approved:false,secure_cookies:false
+   };
+   let st=crate::AppState{db,http:reqwest::Client::new(),cfg:std::sync::Arc::new(cfg)};
+   let raw="reddit-access-token";
+   let enc=encrypt(&st,raw).unwrap();
+   assert_ne!(enc,raw);
+   assert_eq!(decrypt(&st,&enc).unwrap(),raw);
+   assert!(decrypt(&st,"invalid").is_err());
+ }
+ #[test]
+ fn session_cookie_is_opaque_and_http_only() {
+   let token=random_token();
+   let cookie=set_cookie("pil_session",&token,3600,true);
+   assert!(cookie.contains("HttpOnly"));
+   assert!(cookie.contains("SameSite=Lax"));
+   assert!(cookie.contains("Secure"));
+   assert!(!token.contains('='));
+ }
+}
