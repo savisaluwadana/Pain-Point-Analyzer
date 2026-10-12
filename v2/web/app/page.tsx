@@ -41,7 +41,7 @@ export default function Home(){
        api<Job[]>('/research/jobs'),api<Opportunity[]>('/opportunities')
      ]);
      setProjects(p);setItems(e);setRuns(r);setJobs(j);setOpportunities(o);
-   } catch(e){setNotice(e instanceof Error?e.message:'Unable to load');}
+   } catch(e){setUser(null);setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);setNotice(e instanceof Error?e.message:'Unable to load');}
  },[]);
  useEffect(()=>{void load();},[load]);
 
@@ -68,7 +68,7 @@ export default function Home(){
   </aside>
   <main className="main">
    <header className="topbar"><span>INTELLIGENCE WORKSPACE <span className="sep">/</span> {tab.toUpperCase()}</span>
-     <div className="identity">{user?<><span className="avatar">{user.reddit_username.slice(0,1).toUpperCase()}</span><b>u/{user.reddit_username}</b><button onClick={()=>void act(()=>api('/auth/logout',{method:'POST'}).then(()=>{setUser(null);setItems([]);setRuns([]);}), 'Disconnected')}>Sign out</button></>:<a className="connect" href="/api/auth/reddit/start">Connect Reddit →</a>}</div>
+     <div className="identity">{user?<><span className="avatar">{user.reddit_username.slice(0,1).toUpperCase()}</span><b>u/{user.reddit_username}</b><button onClick={()=>void act(()=>api('/auth/logout',{method:'POST'}).then(()=>{setUser(null);setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);}), 'Disconnected')}>Sign out</button></>:<a className="connect" href="/api/auth/reddit/start">Connect Reddit →</a>}</div>
    </header>
    <section className="intro"><div><div className="eyebrow">RESEARCH SYSTEM / V2</div><h1>Find the problem <em>worth solving.</em></h1>
      <p>Collect authorized customer evidence, uncover recurring frustrations, and build a defensible picture of product opportunities.</p>
