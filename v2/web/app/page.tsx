@@ -8,6 +8,9 @@ type Cluster={category:string;independent_stories:number;evidence_count:number;s
 type Report={evidence_scanned:number;independent_stories:number;clusters:Cluster[];caveat:string};
 type Run={id:string;topic:string;report:Report;created_at:string};
 type Job={id:string;subreddit:string;status:string;attempts:number;last_error:string|null;created_at:string};
+type HostRun={id:string;topic:string;name:string;status:string;clusters:unknown[];opportunities:unknown[];annotations:Record<string,unknown>};
+type HostWorkspace={id:string;stage:string;opportunity:{title:string;problem:string};experiments:unknown[]};
+type HostJob={id:string;topic:string;status:string;pass:number};
 type ApiKey={id:string;label:string;created_at:string;last_used_at:string|null};
 type Opportunity={id:string;title:string;problem:string;score:number;evidence_refs:string[];created_at:string};
 
@@ -27,6 +30,9 @@ export default function Home(){
  const [opportunities,setOpportunities]=useState<Opportunity[]>([]);
  const [selected,setSelected]=useState('');
  const [keys,setKeys]=useState<ApiKey[]>([]);
+ const [hostRuns,setHostRuns]=useState<HostRun[]>([]);
+ const [hostWorkspaces,setHostWorkspaces]=useState<HostWorkspace[]>([]);
+ const [hostJobs,setHostJobs]=useState<HostJob[]>([]);
  const [keyLabel,setKeyLabel]=useState('My MCP client');
  const [newKey,setNewKey]=useState('');
  const [subreddit,setSubreddit]=useState('SaaS');
@@ -38,17 +44,17 @@ export default function Home(){
  const [projectName,setProjectName]=useState('');
  const [busy,setBusy]=useState(false);
  const [notice,setNotice]=useState('');
- const [tab,setTab]=useState<'discover'|'evidence'|'opportunities'|'jobs'|'integrations'>('discover');
+ const [tab,setTab]=useState<'discover'|'evidence'|'opportunities'|'jobs'|'integrations'|'agents'>('discover');
 
  const load=useCallback(async()=>{
    try {
      const me=await api<User>('/me');setUser(me);
-     const [p,e,r,j,o,k]=await Promise.all([
+     const [p,e,r,j,o,k,hr,hw,hj]=await Promise.all([
        api<Project[]>('/projects'),api<Evidence[]>('/evidence?limit=200'),api<Run[]>('/research/runs'),
-       api<Job[]>('/research/jobs'),api<Opportunity[]>('/opportunities'),api<ApiKey[]>('/mcp/keys')
+       api<Job[]>('/research/jobs'),api<Opportunity[]>('/opportunities'),api<ApiKey[]>('/mcp/keys'),api<HostRun[]>('/mcp/runs'),api<HostWorkspace[]>('/mcp/workspaces'),api<HostJob[]>('/mcp/research-jobs')
      ]);
-     setProjects(p);setItems(e);setRuns(r);setJobs(j);setOpportunities(o);setKeys(k);
-   } catch(e){setUser(null);setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);setKeys([]);setNotice(e instanceof Error?e.message:'Unable to load');}
+     setProjects(p);setItems(e);setRuns(r);setJobs(j);setOpportunities(o);setKeys(k);setHostRuns(hr);setHostWorkspaces(hw);setHostJobs(hj);
+   } catch(e){setUser(null);setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);setKeys([]);setHostRuns([]);setHostWorkspaces([]);setHostJobs([]);setNotice(e instanceof Error?e.message:'Unable to load');}
  },[]);
  useEffect(()=>{void load();},[load]);
 
@@ -66,7 +72,7 @@ export default function Home(){
     <p className="sidebar-caption">Turn conversations into evidence. Turn evidence into decisions.</p>
     <div className="side-section">WORKSPACE</div>
     <nav aria-label="Research navigation">
-      {([['discover','◉','Overview'],['evidence','≡','Evidence Library'],['opportunities','◇','Opportunities'],['jobs','↻','Research Jobs'],['integrations','⌘','MCP Integrations']] as const).map(([key,icon,label])=>
+      {([['discover','◉','Overview'],['evidence','≡','Evidence Library'],['opportunities','◇','Opportunities'],['jobs','↻','Research Jobs'],['agents','♧','Agent Research'],['integrations','⌘','MCP Integrations']] as const).map(([key,icon,label])=>
         <button key={key} onClick={()=>setTab(key)} className={'side-link '+(tab===key?'active':'')}><span>{icon}</span>{label}</button>)}
     </nav>
     <div className="sidebar-bottom"><span className="status-dot" /> Rust + PostgreSQL
@@ -111,6 +117,18 @@ export default function Home(){
    </section><section className="panel"><div className="panel-heading"><span className="eyebrow">SOURCE LIBRARY</span><h2>Collected evidence</h2></div>{items.length?<div className="list">{items.map(e=><article key={e.id} className="list-item"><span className="pill">{e.source_kind}</span><h3>{e.title||e.source_id}</h3><p>{e.body.slice(0,260)}</p><a href={e.source_url} target="_blank" rel="noopener noreferrer">View source ↗</a></article>)}</div>:<p className="empty">No evidence collected.</p>}</section></>}
    {tab==='opportunities'&&<section className="panel"><div className="panel-heading"><span className="eyebrow">DISCOVERY SHORTLIST</span><h2>Research opportunities</h2><p>Prioritization signals are not proof of willingness to pay.</p></div>{opportunities.length?<div className="list">{opportunities.map(o=><article className="list-item" key={o.id}><div className="score">{Math.round(o.score)} / 100</div><h3>{o.title}</h3><p>{o.problem}</p><small>{o.evidence_refs.length} supporting references</small></article>)}</div>:<p className="empty">Complete an analysis to generate research candidates.</p>}</section>}
    {tab==='jobs'&&<section className="panel"><div className="panel-heading"><span className="eyebrow">AUTOMATION</span><h2>Background collection jobs</h2><p>Approved API access and a valid Reddit session are required.</p></div><button className="secondary" onClick={()=>void load()}>Refresh jobs</button>{jobs.length?<div className="list">{jobs.map(j=><article className="list-item job" key={j.id}><b>r/{j.subreddit}</b><span className="pill">{j.status}</span><small>Attempts: {j.attempts}</small>{j.last_error&&<p>{j.last_error}</p>}</article>)}</div>:<p className="empty">No jobs yet. Queue one from Overview.</p>}</section>}
+   {tab==='agents'&&<div className="two-col">
+     <section className="panel"><div className="panel-heading"><span className="eyebrow">HOST-POWERED RESEARCH</span><h2>Research jobs</h2><p>Codex or Claude can browse approved sources, supply grounded evidence and ask the Rust API to persist research progress.</p></div>
+       <button className="secondary" onClick={()=>void load()}>Refresh agent state</button>
+       {hostJobs.length?<div className="list">{hostJobs.map(j=><article className="list-item" key={j.id}><span className="pill">{j.status}</span><h3>{j.topic}</h3><small>Research pass: {j.pass||0}</small></article>)}</div>:<p className="empty">No host-driven jobs yet. Connect an MCP host to start one.</p>}
+     </section>
+     <section className="panel"><div className="panel-heading"><span className="eyebrow">SEMANTIC RESEARCH</span><h2>LLM-assisted reports</h2><p>Host-provided analysis must reference evidence IDs; the server does not invent or generate source material.</p></div>
+       {hostRuns.length?<div className="list">{hostRuns.map(r=><article className="list-item" key={r.id}><span className="pill">{r.status}</span><h3>{r.name||r.topic}</h3><p>{Object.keys(r.annotations||{}).length} annotations · {(r.clusters||[]).length} clusters · {(r.opportunities||[]).length} candidates</p></article>)}</div>:<p className="empty">No model-hosted analysis runs.</p>}
+     </section>
+     <section className="panel span-all"><div className="panel-heading"><span className="eyebrow">FROM VALIDATION TO EXECUTION</span><h2>Opportunity workspaces</h2><p>Evidence-linked product candidates, validation experiments and execution planning.</p></div>
+       {hostWorkspaces.length?<div className="cluster-grid">{hostWorkspaces.map(w=><div className="cluster" key={w.id}><span className="pill">{w.stage}</span><h3>{w.opportunity?.title||'Untitled opportunity'}</h3><p>{w.opportunity?.problem||''}</p><small>{(w.experiments||[]).length} validation experiments</small></div>)}</div>:<p className="empty">Create opportunity workspaces through the MCP research workflow.</p>}
+     </section>
+   </div>}
    {tab==='integrations'&&<section className="panel"><div className="panel-heading"><span className="eyebrow">NATIVE RUST MCP / HOST INTEGRATION</span><h2>Connect Claude, Codex or another MCP host</h2><p>Create a revocable, per-account key for the local Rust MCP server. Your host controls browsing and model reasoning; source text remains untrusted evidence.</p></div>
     <label htmlFor="mcpKeyLabel">Key description</label><input id="mcpKeyLabel" value={keyLabel} onChange={e=>setKeyLabel(e.target.value)} placeholder="My desktop MCP client"/>
     <button className="primary" disabled={!user||busy||!keyLabel.trim()} onClick={()=>void act(async()=>{const result=await api<{api_key:string}>('/mcp/keys',{method:'POST',body:JSON.stringify({label:keyLabel})});setNewKey(result.api_key);},'API key created. Copy and store it securely now.')}>Generate MCP API key</button>
