@@ -68,6 +68,8 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/reddit/start)" = 503
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/me)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/evidence)" = 401
+      - name: Run all-host MCP integration, owner isolation and JSON-RPC contract
+        run: bash v2/scripts/test_mcp.sh
       - name: Capture logs
         if: always()
         working-directory: v2
