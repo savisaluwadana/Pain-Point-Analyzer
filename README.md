@@ -1,5 +1,7 @@
 # Pain Intelligence Lab
 
+> **Rust + PostgreSQL + Next.js migration:** The new stack is implemented in [v2/](v2/README.md) and developed in [draft PR #14](https://github.com/savisaluwadana/Reddit-post-Analyzer/pull/14). The original application remains available until all workflows, migration validation and deployment tests reach parity. Reddit collection in v2 uses approved OAuth API access, not session-cookie scraping.
+
 Pain Intelligence Lab turns Reddit discussions and cross-source customer evidence into recurring pain clusters, research-backed product opportunities and validation workspaces. It combines a React research interface, MongoDB storage and a local MCP bridge for a connected research host.
 
 Use it to investigate costly workflows, compare workarounds and competitors, preserve source evidence, and decide what to validate next. Scores prioritize research; they do not predict business success.
