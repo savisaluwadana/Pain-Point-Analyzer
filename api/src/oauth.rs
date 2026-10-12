@@ -114,6 +114,47 @@ pub async fn logout(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Resp
   resp.headers_mut().append(SET_COOKIE,HeaderValue::from_str(&callback_cookie(&st,"",0)).map_err(internal)?);
   Ok(resp)
 }
+
+pub(crate) async fn revoke_reddit(st:&AppState,id:Uuid)->ApiResult<bool>{
+  let row:Option<(String,Option<String>)>=sqlx::query_as(
+   "SELECT access_token_ciphertext,refresh_token_ciphertext FROM reddit_credentials WHERE user_id=$1"
+  ).bind(id).fetch_optional(&st.db).await.map_err(internal)?;
+  let Some((access,refresh))=row else {return Ok(false);};
+  let (ciphertext,hint)=match refresh {Some(r)=>(r,"refresh_token"),None=>(access,"access_token")};
+  let raw=decrypt(st,&ciphertext)?;
+  let response=st.http.post("https://www.reddit.com/api/v1/revoke_token")
+   .basic_auth(&st.cfg.client_id,Some(&st.cfg.client_secret))
+   .header("User-Agent",&st.cfg.user_agent)
+   .form(&[("token",raw.as_str()),("token_type_hint",hint)])
+   .send().await.map_err(|err|{
+      tracing::warn!(error=%err,"Reddit revocation request failed");
+      ApiError(StatusCode::BAD_GATEWAY,"Reddit token revocation could not be confirmed; retry or revoke app access in Reddit settings".into())
+   })?;
+  if !response.status().is_success(){
+    return Err(ApiError(StatusCode::BAD_GATEWAY,"Reddit token revocation could not be confirmed; retry or revoke app access in Reddit settings".into()));
+  }
+  Ok(true)
+}
+pub async fn disconnect(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<serde_json::Value>>{
+  let id=user_id(&st,&headers).await?;
+  let remote_revoked=revoke_reddit(&st,id).await?;
+  let mut tx=st.db.begin().await.map_err(internal)?;
+  // Revoke permission to execute any pending or currently leased Reddit API collections.
+  sqlx::query("DELETE FROM research_jobs WHERE owner_id=$1")
+   .bind(id).execute(&mut *tx).await.map_err(internal)?;
+  sqlx::query("DELETE FROM reddit_credentials WHERE user_id=$1")
+   .bind(id).execute(&mut *tx).await.map_err(internal)?;
+  sqlx::query("DELETE FROM evidence WHERE owner_id=$1 AND source_kind IN ('reddit','reddit-comment')")
+   .bind(id).execute(&mut *tx).await.map_err(internal)?;
+  tx.commit().await.map_err(internal)?;
+  Ok(Json(json!({
+   "disconnected":true,
+   "provider_token_revoked":remote_revoked,
+   "reddit_evidence_deleted":true,
+   "notice":"Historical research summaries and host-supplied annotations may still reference deleted Reddit evidence IDs. To erase all research and account data, use Delete account."
+  })))
+}
+
 pub(crate) async fn access_token(st:&AppState,id:Uuid)->ApiResult<String>{
   if !st.cfg.reddit_approved {return Err(ApiError(StatusCode::SERVICE_UNAVAILABLE,"Reddit Data API access not approved".into()));}
   let row:Option<(String,Option<String>,DateTime<Utc>)>=sqlx::query_as("SELECT access_token_ciphertext,refresh_token_ciphertext,expires_at FROM reddit_credentials WHERE user_id=$1")

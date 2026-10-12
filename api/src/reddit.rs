@@ -31,6 +31,10 @@ fn subreddit_ok(name:&str)->bool{
 fn id_ok(id:&str)->bool{
  (1..=16).contains(&id.len())&&id.bytes().all(|b|b.is_ascii_alphanumeric())
 }
+pub(crate) fn is_reddit_host(host:&str)->bool{
+ let host=host.to_ascii_lowercase();
+ host=="reddit.com"||host.ends_with(".reddit.com")||host=="redd.it"||host.ends_with(".redd.it")
+}
 async fn reddit_get(st:&AppState,user:Uuid,path:&str,query:Vec<(&str,String)>)->ApiResult<Value>{
  let token=oauth::access_token(st,user).await?;
  let url=format!("https://oauth.reddit.com{path}");
@@ -72,7 +76,7 @@ pub async fn comments(State(st):State<AppState>,headers:HeaderMap,Query(q):Query
 #[cfg(test)]
 mod tests {
  use super::*;
- #[test] fn bounded_names(){assert!(subreddit_ok("rust"));assert!(!subreddit_ok("rust/path"));assert!(!id_ok("../secret"));}
+ #[test] fn bounded_names(){assert!(subreddit_ok("rust"));assert!(!subreddit_ok("rust/path"));assert!(!id_ok("../secret"));assert!(is_reddit_host("www.reddit.com"));assert!(!is_reddit_host("fake-reddit.com"));}
 }
 
 #[derive(Serialize,Deserialize,Clone)]
