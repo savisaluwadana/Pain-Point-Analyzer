@@ -26,6 +26,7 @@ export default function Home(){
  const [opportunities,setOpportunities]=useState<Opportunity[]>([]);
  const [selected,setSelected]=useState('');
  const [subreddit,setSubreddit]=useState('SaaS');
+ const [threadId,setThreadId]=useState('');
  const [topic,setTopic]=useState('Manual workflows and recurring customer frustrations');
  const [projectName,setProjectName]=useState('');
  const [busy,setBusy]=useState(false);
@@ -84,6 +85,7 @@ export default function Home(){
      <label htmlFor="subreddit">Subreddit</label><div className="prefix-input"><span>r/</span><input id="subreddit" value={subreddit} onChange={e=>setSubreddit(e.target.value)} placeholder="SaaS"/></div>
      <button className="primary" disabled={!user||busy} onClick={()=>void act(()=>api('/research/scan',{method:'POST',body:JSON.stringify({subreddit,project_id,limit:25})}),'Authorized Reddit sample collected')}>{busy?'Processing…':'Collect Reddit sample →'}</button>
      <button className="secondary" disabled={!user||busy} onClick={()=>void act(()=>api('/research/jobs',{method:'POST',body:JSON.stringify({subreddit,project_id})}),'Research job queued')}>Queue a background collection</button>
+     <div className="subpanel"><span className="eyebrow">THREAD COMMENTS</span><label htmlFor="thread">Reddit post ID</label><input id="thread" placeholder="e.g. 1abcxyz" value={threadId} onChange={e=>setThreadId(e.target.value)}/><button className="secondary" disabled={!user||busy||!threadId.trim()} onClick={()=>void act(()=>api('/research/thread',{method:'POST',body:JSON.stringify({post_id:threadId,project_id,limit:50})}),'Thread comments collected')}>Collect authorized comments</button></div>
     </section>
     <section className="panel"><div className="panel-heading"><span className="eyebrow">02 / ANALYZE</span><h2>Discover repeating pain</h2><p>Group pain signals using transparent scoring with traceable source references.</p></div>
      <label htmlFor="topic">Research question</label><textarea id="topic" rows={3} value={topic} onChange={e=>setTopic(e.target.value)} />
