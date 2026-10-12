@@ -22,7 +22,12 @@ pub fn analyze(evidence:&[EvidenceText])->Report{
  let mut unique=HashSet::new();
  let mut groups:HashMap<&str,(HashSet<String>,Vec<Uuid>,Vec<String>,f64)>=HashMap::new();
  for item in evidence {
-   let key=format!("{}:{}",item.source_kind,item.source_id);
+   let key=if item.source_kind=="reddit" && item.source_id.starts_with("t3_"){
+     format!("reddit-thread:{}",item.source_id.trim_start_matches("t3_"))
+   }else if item.source_kind=="reddit-comment"{
+     let thread=item.source_id.split(':').next().unwrap_or(&item.source_id);
+     format!("reddit-thread:{thread}")
+   }else{format!("{}:{}",item.source_kind,item.source_id)};
    unique.insert(key.clone());
    let s=item.text.to_ascii_lowercase();
    for (category,terms) in RULES {
