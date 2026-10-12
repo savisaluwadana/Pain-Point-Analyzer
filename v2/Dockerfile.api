@@ -1,4 +1,4 @@
-FROM rust:stable-bookworm AS build
+FROM rust:latest AS build
 WORKDIR /workspace
 COPY api /workspace/api
 COPY db /workspace/db
