@@ -45,6 +45,10 @@ pub async fn ingest_evidence(State(st):State<AppState>,headers:HeaderMap,Json(bo
  assert_project(&st,uid,body.project_id).await?;
  if body.source_kind!="manual"&&body.source_kind!="import"{return Err(bad("Use the authorized Reddit connector for Reddit evidence"));}
  if body.source_id.len()>255||body.source_id.is_empty()||body.source_url.len()>2048{return Err(bad("Invalid evidence identifier or URL"));}
+ if !body.source_url.is_empty(){
+   let u=url::Url::parse(&body.source_url).map_err(|_|bad("Source URL must use http or https"))?;
+   if !matches!(u.scheme(),"https"|"http"){return Err(bad("Source URL must use http or https"));}
+ }
  let title=body.title.unwrap_or_default().chars().take(500).collect::<String>();
  let text=body.body.unwrap_or_default().chars().take(10000).collect::<String>();
  let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET title=excluded.title,body=excluded.body,collected_at=now() RETURNING id")
