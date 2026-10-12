@@ -31,13 +31,13 @@ pub fn analyze(evidence:&[EvidenceText])->Report{
       let entry=groups.entry(category).or_insert_with(||(HashSet::new(),Vec::new(),Vec::new(),0.0));
       entry.0.insert(key.clone());
       entry.1.push(item.id);
-      if entry.2.len()<3{entry.2.push(item.text.chars().take(240).collect());}
+      // Do not persist raw excerpts in long-lived aggregate reports.
       entry.3+=(hits as f64).min(4.0);
    }
  }
  let mut clusters:Vec<PainCluster>=groups.into_iter().map(|(category,(stories,ids,examples,hits))|{
    let score=(15.0 * stories.len() as f64+ 3.0 * hits).min(100.0);
-   PainCluster{category:category.to_string(),independent_stories:stories.len(),evidence_count:ids.len(),severity_score:score,evidence_ids:ids,examples}
+   PainCluster{category:category.to_string(),independent_stories:stories.len(),evidence_count:ids.len(),severity_score:score,evidence_ids:ids,examples:Vec::new()}
  }).collect();
  clusters.sort_by(|a,b|b.severity_score.total_cmp(&a.severity_score));
  Report{evidence_scanned:evidence.len(),independent_stories:unique.len(),clusters,caveat:"Heuristic triage only. Scores are not buying intent, market size or proof of demand; verify independent sources and contradictory evidence.".into()}
