@@ -11,7 +11,7 @@ call() {
   local name="$1" args="$2"
   curl --fail-with-body -sS "$api/mcp/execute" -H "Authorization: Bearer $token" -H "Content-Type: application/json" --data "{\"name\":\"$name\",\"arguments\":$args}"
 }
-test "$(curl -s -o /dev/null -w '%{http_code}' "$api/mcp/execute")" = 401
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/mcp/execute" -H 'Content-Type: application/json' --data '{"name":"platform_status","arguments":{}}')" = 401
 call platform_status '{}' | jq -e '.ok == true and .schemaTools == 57' >/dev/null
 call ingest_evidence '{"items":[{"source_kind":"forum","external_id":"ci-one","source_name":"CI Forum","url":"https://example.com/one","title":"Manual reporting","text":"Manual spreadsheets slow down the team every week."}]}' | jq -e '.ingested == 1' >/dev/null
 call search_evidence '{"q":"spreadsheets"}' | jq -e '.returned == 1' >/dev/null
