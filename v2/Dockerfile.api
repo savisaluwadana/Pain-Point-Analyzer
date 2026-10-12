@@ -1,0 +1,13 @@
+FROM rust:latest AS build
+WORKDIR /workspace
+COPY api /workspace/api
+COPY db /workspace/db
+WORKDIR /workspace/api
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* && useradd --system --uid 10001 runner
+COPY --from=build /workspace/api/target/release/pain-intelligence-api /usr/local/bin/pain-intelligence-api
+USER 10001
+EXPOSE 4000
+CMD ["/usr/local/bin/pain-intelligence-api"]

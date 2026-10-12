@@ -1,0 +1,81 @@
+name: V2 Rust / Next.js CI
+on:
+  pull_request:
+    paths:
+      - 'v2/**'
+      - '.github/workflows/v2-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'v2/**'
+      - '.github/workflows/v2-ci.yml'
+permissions:
+  contents: read
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Check and test
+        working-directory: v2/api
+        run: |
+          cargo check --all-targets
+          cargo test
+  next:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install and type check
+        working-directory: v2/web
+        run: |
+          node --check ../migrate/import-mongo.mjs
+          node --check ../migrate/verify-import.mjs
+          npm install --no-audit --no-fund
+          npm run typecheck
+          npm run build
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Compose
+        working-directory: v2
+        env:
+          TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
+          POSTGRES_PASSWORD: dev-placeholder
+        run: docker compose config --quiet
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
+      POSTGRES_PASSWORD: dev-integration-password
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start PostgreSQL + Rust API + Next.js
+        working-directory: v2
+        env:
+          TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
+          POSTGRES_PASSWORD: dev-integration-password
+        run: docker compose up --build -d --wait --wait-timeout 180
+      - name: Verify full HTTP path and unapproved OAuth gate
+        run: |
+          curl --fail --retry 15 --retry-delay 3 --retry-connrefused http://127.0.0.1:3000/api/health | grep '"ok":true'
+          curl --fail http://127.0.0.1:3000/ > /tmp/pain-home.html
+          grep -qi 'Pain Intelligence' /tmp/pain-home.html
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/reddit/start)" = 503
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/me)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/evidence)" = 401
+      - name: Run all-host MCP integration, owner isolation and JSON-RPC contract
+        run: bash v2/scripts/test_mcp.sh
+      - name: Capture logs
+        if: always()
+        working-directory: v2
+        run: docker compose logs --tail=100
+      - name: Stop stack
+        if: always()
+        working-directory: v2
+        run: docker compose down -v
