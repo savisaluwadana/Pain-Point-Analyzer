@@ -32,6 +32,7 @@ jobs:
       - name: Install and type check
         working-directory: v2/web
         run: |
+          node --check ../migrate/import-mongo.mjs
           npm install --no-audit --no-fund
           npm run typecheck
           npm run build
@@ -65,6 +66,8 @@ jobs:
           curl --fail http://127.0.0.1:3000/ > /tmp/pain-home.html
           grep -qi 'Pain Intelligence' /tmp/pain-home.html
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/reddit/start)" = 503
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/me)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/evidence)" = 401
       - name: Capture logs
         if: always()
         working-directory: v2
