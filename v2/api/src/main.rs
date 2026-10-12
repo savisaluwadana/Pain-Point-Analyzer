@@ -98,6 +98,7 @@ async fn main()->anyhow::Result<()> {
       .layer(TraceLayer::new_for_http())
       .with_state(st.clone());
     tokio::spawn(jobs::worker(st.clone()));
+    tokio::spawn(jobs::cleanup(st.clone()));
     let addr=SocketAddr::from(([0,0,0,0],env::var("PORT").ok().and_then(|s|s.parse().ok()).unwrap_or(4000)));
     tracing::info!(%addr,"Rust API listening");
     let listener=tokio::net::TcpListener::bind(addr).await?;
