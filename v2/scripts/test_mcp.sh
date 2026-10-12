@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 api="http://127.0.0.1:3000/api"
-sql() { docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U pain -d pain_intelligence -Atc "$1"; }
+sql() { docker compose exec -T postgres psql -q -v ON_ERROR_STOP=1 -U pain -d pain_intelligence -Atc "$1"; }
 token='pil_integration_mock_key_only_for_ci'
 owner="$(sql "INSERT INTO users(reddit_id,reddit_username) VALUES('ci-owner-id','ci-researcher') ON CONFLICT (reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id")"
 hash="$(printf '%s' "$token" | sha256sum | cut -c1-64)"
