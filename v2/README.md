@@ -7,7 +7,7 @@ This is a parallel **migration candidate**, not a drop-in replacement for the or
 - Rust Axum API, SQLx migrations and per-Reddit-user PostgreSQL records
 - Next.js React dashboard for projects, evidence, research summaries, opportunities and jobs
 - Reddit OAuth authorization-code flow, random CSRF state cookie, server-only AES-alternative ChaCha20-Poly1305 encrypted credential storage, opaque hashed session cookies and token refresh
-- Bounded authenticated Reddit API collection, rate-limit response handling, monthly top-post discovery and comment endpoint
+- Bounded authenticated Reddit API collection, rate-limit response handling, monthly top-post discovery, recursive thread comments and evidence lineage
 - Heuristic clustering, independent story counts, persisted reports, background jobs claimed atomically with lease tokens
 - Per-account complete data deletion, seven-day default expiry for new Reddit evidence, bounded retry backoff and an idempotent MongoDB archive/import utility
 - Compose runtime and distinct CI for Rust / Next / Compose validation
@@ -18,7 +18,7 @@ This is a parallel **migration candidate**, not a drop-in replacement for the or
 2. Copy `v2/.env.example` to `v2/.env`. Generate credentials with `openssl rand -hex 32`; set `TOKEN_ENCRYPTION_KEY_HEX`, a strong `POSTGRES_PASSWORD`, Reddit client ID/secret and unique User-Agent. Set `REDDIT_API_APPROVED=true` **only if approval exists**.
 3. Register exact redirect URI `http://localhost:3000/api/auth/reddit/callback` with Reddit. Use HTTPS and `COOKIE_SECURE=true` outside localhost.
 4. From `v2/` run `docker compose up --build -d --wait`. Open `http://localhost:3000`.
-5. Click **Connect Reddit**, grant only identity/read scopes, create a project, collect a permitted subreddit sample, run analysis and inspect source-grounded candidates.
+5. Click **Connect Reddit**, grant only identity/read scopes, create a project, collect a permitted subreddit sample, optionally collect authorized comments by post ID, run analysis and inspect source-grounded candidates.
 6. Run `docker compose logs -f api web` for startup diagnostics; `docker compose down` preserves PostgreSQL data.
 
 ### Local development
@@ -39,6 +39,7 @@ Start PostgreSQL and export `DATABASE_URL`, `REDDIT_REDIRECT_URI`, `WEB_URL`, `T
 | GET/POST | /api/projects | Research projects |
 | GET/POST | /api/evidence | Evidence list / manual evidence ingest |
 | POST | /api/research/scan | Authenticated Reddit ingest |
+| POST | /api/research/thread | Authenticated Reddit comment evidence import |
 | POST | /api/research/analyze | Deterministic categorized findings |
 | GET | /api/research/runs | Report history |
 | GET/POST | /api/research/jobs | Queue / inspect collection jobs |
