@@ -44,6 +44,10 @@ pub(super) async fn ingest(st:&AppState,owner:Uuid,args:&Value)->ApiResult<Value
   if !url.is_empty(){
    let parsed=url::Url::parse(url).map_err(|_|bad("Invalid canonical URL"))?;
    if !matches!(parsed.scheme(),"http"|"https"){return Err(bad("URL must use http or https"));}
+   let host=parsed.host_str().unwrap_or("").to_ascii_lowercase();
+   if matches!(host.as_str(),"reddit.com"|"www.reddit.com"|"redd.it")||host.ends_with(".reddit.com") {
+     return Err(bad("Reddit source URLs must be collected through the approved OAuth connector"));
+   }
   }
   let source=string(&item,"source_name").chars().take(150).collect::<String>();
   let community=string(&item,"community").chars().take(150).collect::<String>();
