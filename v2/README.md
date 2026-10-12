@@ -9,7 +9,7 @@ This is a parallel **migration candidate**, not a drop-in replacement for the or
 - Reddit OAuth authorization-code flow, random CSRF state cookie, server-only AES-alternative ChaCha20-Poly1305 encrypted credential storage, opaque hashed session cookies and token refresh
 - Bounded authenticated Reddit API collection, rate-limit response handling, monthly top-post discovery and comment endpoint
 - Heuristic clustering, independent story counts, persisted reports, background jobs claimed atomically with lease tokens
-- Per-account complete data deletion and an idempotent MongoDB archive/import utility
+- Per-account complete data deletion, seven-day default expiry for new Reddit evidence, bounded retry backoff and an idempotent MongoDB archive/import utility
 - Compose runtime and distinct CI for Rust / Next / Compose validation
 
 ## Setup
