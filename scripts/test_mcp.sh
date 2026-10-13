@@ -79,7 +79,7 @@ test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   --data '{"source":"discourse","query":"bugs","target":"localhost"}')" = 400
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
-  --data '{"source":"youtube","target":"not-a-video"}')" = 400
+  --data '{"source":"youtube","target":"invalid/video/id"}')" = 400
 curl --fail-with-body -sS -X POST "$api/projects" -H "Cookie: pil_session=$session" \
   -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   --data '{"name":"Permitted research project"}' | jq -e '.name == "Permitted research project"' >/dev/null
