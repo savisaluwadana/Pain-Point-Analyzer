@@ -58,6 +58,9 @@ pub async fn cleanup(st:AppState){
    if let Err(err)=sqlx::query("DELETE FROM evidence WHERE source_kind IN ('reddit','reddit-comment') AND collected_at < now() - ($1 * interval '1 day')").bind(days).execute(&st.db).await{
      tracing::error!(error=%err,"retention cleanup failed");
    }
+   let days:i32=std::env::var("SOURCE_RETENTION_DAYS").ok().and_then(|s|s.parse().ok()).unwrap_or(7).clamp(1,30);
+   if let Err(err)=sqlx::query("DELETE FROM evidence WHERE source_kind IN ('github','hackernews','stackoverflow','bluesky','youtube','discourse','medium') AND collected_at < now() - ($1 * interval '1 day')")
+     .bind(days).execute(&st.db).await {tracing::error!(error=%err,"source evidence cleanup failed");}
    let _=sqlx::query("DELETE FROM user_sessions WHERE expires_at<now()").execute(&st.db).await;
    // A worker killed during its final lease must not leave the job stuck forever.
    let _=sqlx::query("UPDATE research_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL,finished_at=now(),last_error=COALESCE(last_error,'Worker lease expired after final retry') WHERE status='running' AND lease_expires_at<now() AND attempts>=3").execute(&st.db).await;

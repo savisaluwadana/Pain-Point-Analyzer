@@ -44,6 +44,7 @@ jobs:
     env:
       TOKEN_ENCRYPTION_KEY_HEX: '0000000000000000000000000000000000000000000000000000000000000000'
       POSTGRES_PASSWORD: dev-integration-password
+      LOCAL_LOGIN_TOKEN: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     steps:
       - uses: actions/checkout@v4
       - name: Start PostgreSQL, Rust and Next.js

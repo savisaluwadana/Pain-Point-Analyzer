@@ -30,7 +30,7 @@ fn cookie_value(headers:&HeaderMap,name:&str)->Option<String> {
 fn set_cookie(name:&str,value:&str,secs:i64,secure:bool)->String{
   format!("{name}={value}; Path=/; Max-Age={secs}; HttpOnly; SameSite=Lax{}",if secure {"; Secure"} else {""})
 }
-fn callback_cookie(state:&AppState,token:&str,secs:i64)->String {
+pub(crate) fn callback_cookie(state:&AppState,token:&str,secs:i64)->String {
   set_cookie("pil_session",token,secs,state.cfg.secure_cookies)
 }
 pub(crate) fn encrypt(state:&AppState,plaintext:&str)->ApiResult<String>{
@@ -103,10 +103,10 @@ pub(crate) async fn user_id(st:&AppState,headers:&HeaderMap)->ApiResult<Uuid>{
 }
 pub async fn me(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<serde_json::Value>>{
   let id=user_id(&st,&headers).await?;
-  let name:String=sqlx::query_scalar("SELECT reddit_username FROM users WHERE id=$1").bind(id).fetch_one(&st.db).await.map_err(internal)?;
+  let (name,account_kind):(String,String)=sqlx::query_as("SELECT reddit_username,reddit_id FROM users WHERE id=$1").bind(id).fetch_one(&st.db).await.map_err(internal)?;
   let reddit_connected:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM reddit_credentials WHERE user_id=$1)")
     .bind(id).fetch_one(&st.db).await.map_err(internal)?;
-  Ok(Json(json!({"id":id,"reddit_username":name,"reddit_connected":reddit_connected})))
+  Ok(Json(json!({"id":id,"reddit_username":name,"reddit_connected":reddit_connected,"local_account":account_kind=="local-only"})))
 }
 pub async fn logout(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Response>{
   if let Some(session)=cookie_value(&headers,"pil_session"){
@@ -192,7 +192,7 @@ mod tests {
      client_id:String::new(),client_secret:String::new(),
      redirect_uri:"http://localhost:3000/api/auth/reddit/callback".into(),
      web_url:"http://localhost:3000".into(),user_agent:"test".into(),
-     encryption_key:[7u8;32],reddit_approved:false,secure_cookies:false
+     encryption_key:[7u8;32],reddit_approved:false,secure_cookies:false,local_login_token:None
    };
    let st=crate::AppState{db,http:reqwest::Client::new(),cfg:std::sync::Arc::new(cfg)};
    let raw="reddit-access-token";

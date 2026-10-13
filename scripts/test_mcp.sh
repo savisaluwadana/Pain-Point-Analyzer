@@ -63,6 +63,23 @@ test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/projects" \
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/projects" \
   -H "Cookie: pil_session=$session" \
   -H 'Content-Type: application/json' --data '{"name":"missing origin"}')" = 403
+# Source adapter discovery requires no credentials; collection always requires a session.
+curl --fail-with-body -sS "$api/sources" | jq -e '.sources | length == 7' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H 'Content-Type: application/json' \
+  --data '{"source":"github","query":"feature request"}')" = 401
+# Local-only authentication works without Reddit OAuth credentials.
+local_result="$(curl --fail-with-body -sS -X POST "$api/auth/local" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  --data '{"token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' -c /tmp/osdl-local-cookie.txt)"
+printf '%s' "$local_result" | jq -e '.ok == true' >/dev/null
+curl --fail-with-body -sS "$api/me" -b /tmp/osdl-local-cookie.txt | jq -e '.local_account == true and .reddit_connected == false' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/auth/local" -H 'Origin: https://evil.example' -H 'Content-Type: application/json' \
+  --data '{"token":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}')" = 403
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  --data '{"source":"medium","query":"../../etc/passwd"}')" = 400
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  --data '{"source":"discourse","query":"bugs","target":"localhost"}')" = 400
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  --data '{"source":"youtube","target":"invalid/video/id"}')" = 400
 curl --fail-with-body -sS -X POST "$api/projects" -H "Cookie: pil_session=$session" \
   -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
   --data '{"name":"Permitted research project"}' | jq -e '.name == "Permitted research project"' >/dev/null

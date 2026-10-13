@@ -30,7 +30,7 @@ The collector currently uses selected subreddit top posts for the past month; it
 - Read-only access. No posting, voting, direct messaging, moderation actions or engagement automation.
 - No browser-session impersonation, unauthorized collection, internal Reddit GraphQL endpoint access, or bypass of controls.
 - Configured conservative request limits and provider backoff; Reddit's actual permissions, quotas and policies take precedence.
-- Default deletion of locally stored Reddit evidence after seven days, plus account deletion and disconnected-account removal.
+- Default deletion of locally stored Reddit evidence after seven days and connected-source evidence after seven days (configurable 1–30), plus account deletion and disconnected-account removal.
 - No sale or redistribution of Reddit discussions as a dataset; no training of AI models on Reddit content.
 - Source material is treated as untrusted input; individual Redditors are not profiled for outreach.
 - Publicly visible source code and community discussion **do not** imply authorization to collect or reuse Reddit content.
@@ -39,7 +39,7 @@ The collector currently uses selected subreddit top posts for the past month; it
 ## What the implementation does not currently guarantee
 
 - Approved or tested live Reddit Data API access; Reddit may refuse access or change available interfaces.
-- A Reddit-independent local login; Reddit OAuth is still required for the dashboard's authentication flow.
+- Internet-facing multi-user authentication; the new local access-token login is deliberately limited to localhost.
 - Fully automated external website scraping. MCP tools coordinate a **connected host** that must independently respect source permissions.
 - Complete reconstruction of all historical context or exact compatibility with previous MCP tool outputs.
 - Any authorization to use Reddit or other third-party material beyond its separate terms; MIT licenses the project's code, not third-party content.
