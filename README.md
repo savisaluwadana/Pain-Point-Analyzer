@@ -34,41 +34,41 @@ The built-in categorization is heuristic, not a measurement of community support
 
 Requirements: Docker Engine and Docker Compose v2.
 
-\`\`\`bash
+```bash
 git clone https://github.com/savisaluwadana/Reddit-post-Analyzer.git
 cd Reddit-post-Analyzer
 cp .env.example .env
 openssl rand -hex 32
-\`\`\`
+```
 
-Add the generated value to \`TOKEN_ENCRYPTION_KEY_HEX\` in \`.env\`; set a strong \`POSTGRES_PASSWORD\`.
+Add the generated value to `TOKEN_ENCRYPTION_KEY_HEX` in `.env`; set a strong `POSTGRES_PASSWORD`.
 
-**Current sign-in depends on Reddit OAuth.** Before first use through the dashboard, you need an approved Reddit developer application and \`REDDIT_CLIENT_ID\`, \`REDDIT_CLIENT_SECRET\`, \`REDDIT_REDIRECT_URI\`, and an appropriate \`REDDIT_USER_AGENT\`. Set \`REDDIT_API_APPROVED=true\` **only after approval**. These settings do not themselves authorize access. Without them, the stack starts but browser sign-in and collection remain unavailable; local-only sign-in is not yet implemented.
+**Current sign-in depends on Reddit OAuth.** Before first use through the dashboard, you need an approved Reddit developer application and `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, and an appropriate `REDDIT_USER_AGENT`. Set `REDDIT_API_APPROVED=true` **only after approval**. These settings do not themselves authorize access. Without them, the stack starts but browser sign-in and collection remain unavailable; local-only sign-in is not yet implemented.
 
-\`\`\`bash
+```bash
 docker compose up --build -d --wait
-\`\`\`
+```
 
-Open **http://localhost:3000**. Database migrations apply automatically. The default Reddit request budgets are 30 requests/minute per app and 10 requests/minute per user; provider terms and actual limits take precedence. To stop without deleting data, use \`docker compose down\` (not \`down -v\`).
+Open **http://localhost:3000**. Database migrations apply automatically. The default Reddit request budgets are 30 requests/minute per app and 10 requests/minute per user; provider terms and actual limits take precedence. To stop without deleting data, use `docker compose down` (not `down -v`).
 
 ## Architecture
 
 | Component | Technology | Location |
 | --- | --- | --- |
-| API and collector | Rust, Axum, Tokio, SQLx | \`api/\` |
-| Local dashboard | Next.js, React, TypeScript | \`web/\` |
-| Source evidence and research | PostgreSQL 17 | \`db/\` |
-| Optional research host bridge | Rust MCP over JSON-RPC stdio | \`api/src/mcp/\` |
-| Integration checks | Docker + application / MCP scenarios | \`scripts/test_mcp.sh\` |
+| API and collector | Rust, Axum, Tokio, SQLx | `api/` |
+| Local dashboard | Next.js, React, TypeScript | `web/` |
+| Source evidence and research | PostgreSQL 17 | `db/` |
+| Optional research host bridge | Rust MCP over JSON-RPC stdio | `api/src/mcp/` |
+| Integration checks | Docker + application / MCP scenarios | `scripts/test_mcp.sh` |
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
   Browser["Local Next.js dashboard"] --> API["Rust API"]
   Host["Optional AI research host"] --> MCP["Rust MCP bridge"]
   MCP --> API
   API --> PG[("PostgreSQL")]
   API -->|Approved OAuth only| Reddit["Reddit Data API"]
-\`\`\`
+```
 
 ### Current features
 
@@ -81,10 +81,10 @@ flowchart LR
 
 ## Technical development
 
-\`\`\`bash
+```bash
 cd api && cargo check --all-targets && cargo test
 cd web && npm install && npm run typecheck && npm run build
-\`\`\`
+```
 
 Run these in separate terminals when starting services directly. CI covers the Rust API, Next.js production build, Docker configuration and a PostgreSQL-backed integration flow. It does not establish approval or test real Reddit OAuth credentials.
 

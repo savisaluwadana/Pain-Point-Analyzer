@@ -17,7 +17,7 @@ These are possible outcomes, not promises of a particular project or evidence th
 ## Intended Reddit Data API behavior
 
 If separately approved, the standalone application would:
-1. Use a Reddit OAuth app requesting \`identity\` and \`read\` permissions.
+1. Use a Reddit OAuth app requesting `identity` and `read` permissions.
 2. Read a bounded sample of public posts from selected communities and explicitly requested thread comments.
 3. Store local, short-lived evidence with timestamps, source URLs and relevant discussion metadata.
 4. Group related observations through deterministic theme scoring and optional research-host-assisted interpretation.

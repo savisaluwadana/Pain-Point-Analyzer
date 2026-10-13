@@ -57,7 +57,7 @@ CI tests Rust, Next.js, Compose and the live web→API→database→MCP workflow
 
 ## Security and privacy controls
 
-Cookie-authenticated POST/PUT/PATCH/DELETE requests must carry an Origin that exactly matches the configured \`WEB_URL\`. Requests carrying only MCP bearer credentials do not rely on browser cookies, so they use bearer authentication independently. HTTPS deployment requires \`COOKIE_SECURE=true\` and a matching OAuth callback origin. X-Frame-Options and other standard browser security response headers are set in Next.js.
+Cookie-authenticated POST/PUT/PATCH/DELETE requests must carry an Origin that exactly matches the configured `WEB_URL`. Requests carrying only MCP bearer credentials do not rely on browser cookies, so they use bearer authentication independently. HTTPS deployment requires `COOKIE_SECURE=true` and a matching OAuth callback origin. X-Frame-Options and other standard browser security response headers are set in Next.js.
 
 The Privacy & Settings UI supports owner-scoped JSON export without OAuth secrets or raw Reddit posts, per-item evidence deletion, project deletion (preserving unassigned evidence), Reddit app disconnect with OAuth revocation, and account deletion. Account deletion is not blocked if a provider revocation attempt fails; the user is notified to revoke the app from Reddit's account settings. Deleted-user rows cascade through their research and API keys.
 
