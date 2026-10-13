@@ -146,7 +146,7 @@ export default function Home(){
    </div>}
    {tab==='sources'&&<div className="two-col">
      <section className="panel"><div className="panel-heading"><span className="eyebrow">READ-ONLY COMMUNITY CONNECTORS</span><h2>Collect source-linked evidence</h2><p>Use official or published interfaces with bounded requests. No Reddit API credentials required. A source may be unavailable if its provider denies access.</p></div>
-      <label htmlFor="sourceSelect">Source</label><select id="sourceSelect" value={source} onChange={e=>{setSource(e.target.value);setSourceResult('');if(e.target.value==='medium')setSourceQuery('open-source');else setSourceQuery('feature request');setSourceTarget('');}}>{catalog.map(s=><option key={s.id} value={s.id}>{s.name}{s.ready?'':' (needs configuration)'}</option>)}</select>
+      <label htmlFor="sourceSelect">Source</label><select id="sourceSelect" value={source} onChange={e=>{setSource(e.target.value);setSourceResult('');if(e.target.value==='medium')setSourceQuery('open-source');else if(e.target.value==='youtube')setSourceQuery('');else setSourceQuery('feature request');setSourceTarget('');}}>{catalog.map(s=><option key={s.id} value={s.id}>{s.name}{s.ready?'':' (needs configuration)'}</option>)}</select>
       {chosenSource&&<p className="disclaimer">{chosenSource.note}</p>}
       <label htmlFor="sourceQuery">{chosenSource?.mode==='tag'?'Medium topic tag':chosenSource?.mode==='video'?'Optional comment search filter':'Search topic or phrase'}</label>
       <input id="sourceQuery" value={sourceQuery} onChange={e=>setSourceQuery(e.target.value)} placeholder={chosenSource?.mode==='tag'?'open-source':'missing feature'}/>
