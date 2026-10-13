@@ -66,6 +66,13 @@ fn discourse_host(target:&str)->ApiResult<String>{
        || host.starts_with('-') || host.ends_with('.') || host.contains(".."){
         return Err(bad("Discourse target must be an allowlisted public hostname"));
     }
+    // Never permit loopback, private IPs, or internal test domains even if misconfigured.
+    if host.parse::<std::net::IpAddr>().is_ok()
+        || host=="localhost" || host.ends_with(".localhost")
+        || host.ends_with(".local") || host.ends_with(".internal")
+        || host.ends_with(".test") || host.ends_with(".invalid"){
+        return Err(bad("Discourse hostname must be a public DNS name"));
+    }
     // Site owner/operator must configure the exact public forums they have permission to query.
     let allowed=env::var("DISCOURSE_ALLOWED_HOSTS").unwrap_or_default();
     if !allowed.split(',').map(str::trim).any(|v|v.eq_ignore_ascii_case(&host)){
@@ -147,7 +154,7 @@ async fn collect_upstream(source:&str,q:&str,target:&str,limit:usize)->ApiResult
                 if !url.starts_with("https://stackoverflow.com/"){return None;}
                 Some(Finding{id:id.to_string(),title:html_text(&raw(x,"/title")),body:html_text(&raw(x,"/body")),
                 url,published:x["creation_date"].as_i64().and_then(|t|DateTime::from_timestamp(t,0)),
-                metadata:json!({"score":x["score"],"tags":x["tags"],"license":"CC BY-SA; attribution to linked author/source required"})})
+                metadata:json!({"score":x["score"],"tags":x["tags"],"author":raw(x,"/owner/display_name"),"license":"CC BY-SA","license_url":"https://creativecommons.org/licenses/by-sa/4.0/"})})
             }).collect()).unwrap_or_default()
         },
         "bluesky"=>{
@@ -282,6 +289,8 @@ mod tests{
         assert!(youtube_id("dQw4w9WgXcQ").is_ok());
         assert!(youtube_id("../etc/passwd").is_err());
         assert!(!supported("reddit"));
+        assert!(discourse_host("127.0.0.1").is_err());
+        assert!(discourse_host("server.internal").is_err());
         assert!(html_text("<b>problem</b> &amp; workaround").contains("problem & workaround"));
         assert!(get_date("2026-10-13T01:00:00Z").is_some());
     }
