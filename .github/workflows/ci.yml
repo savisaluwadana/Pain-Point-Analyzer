@@ -52,7 +52,7 @@ jobs:
         run: |
           curl --fail --retry 15 --retry-delay 3 --retry-connrefused http://127.0.0.1:3000/api/health | grep '"ok":true'
           curl --fail http://127.0.0.1:3000/ > /tmp/pain-home.html
-          grep -qi 'Pain Intelligence' /tmp/pain-home.html
+          grep -qi 'Open Source Discovery Lab' /tmp/pain-home.html
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/auth/reddit/start)" = 503
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/me)" = 401
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/evidence)" = 401
