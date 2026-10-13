@@ -1,0 +1,34 @@
+name: Feature or contribution idea
+description: Suggest a focused improvement for the open-source research workflow
+title: "[Idea] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Community or developer need
+      description: What is hard today? Distinguish observation from assumption.
+    validations:
+      required: true
+  - type: textarea
+    id: existing
+    attributes:
+      label: Existing alternatives and workarounds
+      description: What projects, tools or docs already address it?
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed change
+      description: Describe a minimally useful improvement and how to test it.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Permissions, privacy or compatibility considerations
+      description: Especially important for data providers and API connectors.
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am interested in helping implement or test this.

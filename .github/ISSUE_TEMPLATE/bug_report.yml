@@ -1,0 +1,55 @@
+name: Bug report
+description: Report a reproducible error (no credentials or private source text)
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! This is an alpha. **Do not include secrets, personal data, cookies, or private forum content.** For vulnerabilities, follow SECURITY.md privately.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior and expected behavior.
+      placeholder: I selected GitHub Issues, entered a query, and received...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start the local stack
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Local login / installation
+        - Source collection / provider APIs
+        - Evidence or research analysis
+        - Dashboard / accessibility
+        - MCP integration
+        - Documentation / other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Ubuntu 24.04; Docker Compose v2; commit SHA
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted error or logs
+      description: Remove tokens, user content and PII before posting.
+  - type: checkboxes
+    id: verify
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have removed credentials, cookies and private content.
+          required: true

@@ -1,0 +1,34 @@
+name: Alpha tester feedback
+description: Tell us whether the first-run demo worked and what was confusing
+title: "[Alpha feedback] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please use **fictional demo data** when sharing examples. No passwords, access tokens, session cookies, private messages or scraped datasets.
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Did the five-minute demo work?
+      options:
+        - Yes, I viewed the theme report
+        - Partly, some steps failed
+        - No, I could not start it
+        - I have not tried it yet
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: What was most useful or confusing?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Setup environment or failed step (optional)
+      description: Share system versions and redacted errors only.
+  - type: textarea
+    id: improvement
+    attributes:
+      label: One improvement that would make this worth contributing to
