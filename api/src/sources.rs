@@ -108,7 +108,7 @@ fn uri(base:&str,pairs:&[(&str,&str)])->ApiResult<Url>{
     url.query_pairs_mut().extend_pairs(pairs.iter().copied());
     Ok(url)
 }
-async fn collect_upstream(st:&AppState,source:&str,q:&str,target:&str,limit:usize)->ApiResult<Vec<Finding>>{
+async fn collect_upstream(source:&str,q:&str,target:&str,limit:usize)->ApiResult<Vec<Finding>>{
     let client=Client::builder().timeout(std::time::Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::none()).build().map_err(internal)?;
     let n=limit.to_string();
@@ -155,7 +155,7 @@ async fn collect_upstream(st:&AppState,source:&str,q:&str,target:&str,limit:usiz
             let v=get_json(&client,source,u,None).await?;
             v["posts"].as_array().map(|a|a.iter().filter_map(|x|{
                 let id=raw(x,"/uri");let handle=raw(x,"/author/handle");
-                let rkey=id.rsplit('/').next()?;
+                let rkey=id.rsplit('/').next()?.to_owned();
                 if !id.starts_with("at://")||!handle.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'.'||c==b'-')
                     || !rkey.bytes().all(|c|c.is_ascii_alphanumeric()){return None;}
                 Some(Finding{id,title:format!("Bluesky post by @{handle}"),body:short(&raw(x,"/record/text"),1200),
@@ -258,7 +258,7 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
         _=>{}
     };
     budget(&st,user,&req.source).await?;
-    let items=collect_upstream(&st,&req.source,q,target,limit).await?;
+    let items=collect_upstream(&req.source,q,target,limit).await?;
     let mut tx=st.db.begin().await.map_err(internal)?;
     let mut saved=0usize;
     for finding in items.iter(){
