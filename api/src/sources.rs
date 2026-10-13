@@ -173,8 +173,10 @@ async fn collect_upstream(source:&str,q:&str,target:&str,limit:usize)->ApiResult
         },
         "youtube"=>{
             let id=youtube_id(target)?;
-            let u=uri("https://www.googleapis.com/youtube/v3/commentThreads",&[("part","snippet"),("videoId",id),("maxResults",&n),("textFormat","plainText"),
-                ("key",&required_env("YOUTUBE_API_KEY","YouTube collection requires YOUTUBE_API_KEY")?)])?;
+            let key=required_env("YOUTUBE_API_KEY","YouTube collection requires YOUTUBE_API_KEY")?;
+            let mut args=vec![("part","snippet"),("videoId",id),("maxResults",&n),("textFormat","plainText"),("key",key.as_str())];
+            if !q.is_empty(){args.push(("searchTerms",q));}
+            let u=uri("https://www.googleapis.com/youtube/v3/commentThreads",&args)?;
             let v=get_json(&client,source,u,None).await?;
             v["items"].as_array().map(|a|a.iter().filter_map(|x|{
                 let comment_id=raw(x,"/snippet/topLevelComment/id");
