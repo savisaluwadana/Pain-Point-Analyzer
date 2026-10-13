@@ -17,7 +17,7 @@ This project was previously presented as *Pain Intelligence Lab*. The GitHub rep
 - **Keep scope small.** The current setup is designed for a single local operator, with bounded requests and short default Reddit evidence retention.
 - **Stay transparent.** Optional host-assisted research tools can also plan market comparisons, experiments, and project execution. Their presence does not constitute an authorization to use Reddit data commercially. If the project changes purpose, re-evaluate permissions before using Reddit-derived material for that purpose.
 
-See [Purpose, scope, and data use](docs/PURPOSE_AND_DATA_USE.md) and [Reddit API request wording](docs/REDDIT_API_REQUEST.md).
+See [Purpose, scope, and data use](docs/PURPOSE_AND_DATA_USE.md) for the project's scope, permissions, and data-handling practices.
 
 ## What you can explore
 
@@ -90,13 +90,13 @@ Run these in separate terminals when starting services directly. CI covers the R
 
 See [Architecture](docs/ARCHITECTURE.md) and [MCP host configuration](docs/MCP.md).
 
-## Current use and software licensing
+## License and data use
 
-The **intended present use of the application and requested Reddit data access is local, individual, and non-commercial**. This statement describes the proposed operation; it is **not** a grant of rights to Reddit data and is **not** a software license.
+**Software license:** [MIT License](LICENSE) — this project's original source code is open source. The MIT license allows use, modification, redistribution, and commercial reuse of the code, subject to its license conditions.
 
-The source is publicly visible, but this repository **does not currently include an open-source LICENSE file**. Choose and add an appropriate OSI-approved license before describing the repository's code as legally open-source or inviting redistribution. Open-source software projects inspired by research can be separately licensed.
+**Current intended operation:** local, individual, non-commercial research. That describes how this application and its Reddit integration are currently intended to be used; it is **not** a restriction added to the MIT software license.
 
-Any later commercial product, paid research service, redistribution, or broader application deployment would require a new review of Reddit's terms and any separate permission required. We do not claim API approval, exemption from Reddit's terms, or authorization for automated scraping.
+**Third-party data is separate from code.** The MIT license does not grant rights to Reddit posts, comments, user content, trademarks, or external datasets. Any access to Reddit content requires independently approved permissions and compliance with applicable platform and data-use terms. Commercial exploitation of Reddit-derived content or analysis may require separate authorization. Do not treat open-source licensing as approval to scrape Reddit or bypass access controls.
 
 ## Limitations
 
