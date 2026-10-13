@@ -32,12 +32,12 @@ pub async fn delete_project(State(st):State<AppState>,headers:HeaderMap,Path(id)
 #[derive(Deserialize)]
 pub struct EvidenceInput {source_kind:String,source_id:String,source_url:String,title:Option<String>,body:Option<String>,project_id:Option<Uuid>}
 #[derive(Serialize,FromRow)]
-pub struct EvidenceRow {id:Uuid,source_kind:String,source_id:String,source_url:String,title:String,body:String,collected_at:DateTime<Utc>}
+pub struct EvidenceRow {id:Uuid,source_kind:String,source_id:String,source_url:String,title:String,body:String,metadata:Value,collected_at:DateTime<Utc>}
 #[derive(Deserialize)]
 pub struct EvidenceQuery {limit:Option<i64>,project_id:Option<Uuid>}
 pub async fn evidence(State(st):State<AppState>,headers:HeaderMap,Query(q):Query<EvidenceQuery>)->ApiResult<Json<Vec<EvidenceRow>>>{
  let uid=oauth::user_id(&st,&headers).await?;
- let rows=sqlx::query_as("SELECT id,source_kind,source_id,source_url,title,body,collected_at FROM evidence WHERE owner_id=$1 AND ($2::uuid IS NULL OR project_id=$2) ORDER BY collected_at DESC LIMIT $3")
+ let rows=sqlx::query_as("SELECT id,source_kind,source_id,source_url,title,body,metadata,collected_at FROM evidence WHERE owner_id=$1 AND ($2::uuid IS NULL OR project_id=$2) ORDER BY collected_at DESC LIMIT $3")
    .bind(uid).bind(q.project_id).bind(q.limit.unwrap_or(100).clamp(1,500)).fetch_all(&st.db).await.map_err(internal)?;
  Ok(Json(rows))
 }
