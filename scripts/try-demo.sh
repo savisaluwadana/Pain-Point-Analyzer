@@ -12,8 +12,8 @@ done
 
 origin="${OSDL_BASE_URL:-http://localhost:3000}"
 case "$origin" in
-  http://localhost:3000|http://127.0.0.1:3000) ;;
-  *) echo "For safety, the demo only supports http://localhost:3000 or http://127.0.0.1:3000" >&2; exit 1 ;;
+  http://localhost:3000) ;;
+  *) echo "The demo expects the default http://localhost:3000 WEB_URL and origin (CSRF protection requires an exact match)" >&2; exit 1 ;;
 esac
 
 access_token="${LOCAL_LOGIN_TOKEN:-}"
@@ -31,7 +31,7 @@ trap 'rm -f "$cookie_jar"' EXIT
 json_headers=(-H 'Content-Type: application/json' -H "Origin: $origin")
 
 # Authenticate using a local session; never print the token.
-jq -nc --arg token "$access_token" '{token:$token}' |
+printf '%s' "$access_token" | jq -Rs '{token:.}' |
   curl --fail-with-body -sS -o /dev/null -c "$cookie_jar" "${json_headers[@]}" --data-binary @- "$origin/api/auth/local"
 
 project_json="$(curl --fail-with-body -sS -b "$cookie_jar" "${json_headers[@]}" \
