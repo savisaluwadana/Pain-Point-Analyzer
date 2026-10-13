@@ -2,7 +2,9 @@ mod jobs;
 mod csrf;
 mod mcp;
 mod oauth;
+mod local_auth;
 mod reddit;
+mod sources;
 mod research;
 mod scoring;
 
@@ -24,6 +26,7 @@ pub(crate) struct Config {
     pub encryption_key: [u8; 32],
     pub reddit_approved: bool,
     pub secure_cookies: bool,
+    pub local_login_token: Option<String>,
 }
 #[derive(Clone)]
 pub(crate) struct AppState {
@@ -44,7 +47,7 @@ pub(crate) fn internal(error: impl std::fmt::Display)->ApiError {
     ApiError(StatusCode::INTERNAL_SERVER_ERROR,"Internal server error".into())
 }
 pub(crate) fn bad(message:&str)->ApiError {ApiError(StatusCode::BAD_REQUEST,message.into())}
-pub(crate) fn unauthorized()->ApiError {ApiError(StatusCode::UNAUTHORIZED,"Sign in with Reddit".into())}
+pub(crate) fn unauthorized()->ApiError {ApiError(StatusCode::UNAUTHORIZED,"Sign in to the research workspace".into())}
 
 fn config()->anyhow::Result<Config> {
     let key=hex::decode(env::var("TOKEN_ENCRYPTION_KEY_HEX")?)?;
@@ -60,6 +63,11 @@ fn config()->anyhow::Result<Config> {
     let redirect_uri=env::var("REDDIT_REDIRECT_URI")?;
     let redirect=url::Url::parse(&redirect_uri)?;
     anyhow::ensure!(redirect.origin()==web_origin.origin() && redirect.path()=="/api/auth/reddit/callback" && redirect.query().is_none() && redirect.fragment().is_none(),"REDDIT_REDIRECT_URI must match WEB_URL origin and /api/auth/reddit/callback");
+    let local_login_token=env::var("LOCAL_LOGIN_TOKEN").ok().filter(|x|!x.is_empty());
+    if let Some(key)=&local_login_token {
+        anyhow::ensure!(key.len()==64 && key.bytes().all(|c|c.is_ascii_hexdigit()),"LOCAL_LOGIN_TOKEN must be generated with openssl rand -hex 32");
+        anyhow::ensure!(matches!(web_origin.host_str(),Some("localhost"|"127.0.0.1")),"Local login is supported only for a localhost WEB_URL");
+    }
     Ok(Config {
         client_id:env::var("REDDIT_CLIENT_ID").unwrap_or_default(),
         client_secret:env::var("REDDIT_CLIENT_SECRET").unwrap_or_default(),
@@ -69,6 +77,7 @@ fn config()->anyhow::Result<Config> {
         encryption_key,
         reddit_approved:env::var("REDDIT_API_APPROVED").as_deref()==Ok("true"),
         secure_cookies,
+        local_login_token,
     })
 }
 
@@ -91,6 +100,9 @@ async fn main()->anyhow::Result<()> {
     let st=AppState{db,http,cfg:Arc::new(cfg)};
     let app=Router::new()
       .route("/api/health",get(health))
+      .route("/api/sources",get(sources::catalog))
+      .route("/api/sources/collect",post(sources::collect))
+      .route("/api/auth/local",post(local_auth::login))
       .route("/api/mcp/keys",get(mcp::state::list_keys).post(mcp::state::create_key))
       .route("/api/mcp/keys/{id}",axum::routing::delete(mcp::state::revoke_key))
       .route("/api/mcp/execute",post(mcp::execute))
