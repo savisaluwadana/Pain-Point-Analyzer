@@ -1,4 +1,8 @@
-# Pain Intelligence Lab — Rust architecture
+# Open Source Discovery Lab — Rust architecture
+
+## Purpose and operator scope
+
+Open Source Discovery Lab is currently intended for individual, local, non-commercial research into recurring needs discussed in online communities, with the aim of identifying possible open-source software contributions. The existing implementation includes broader analytical modules, but these do not authorize commercial use of Reddit data. Read the scope and permissions in [Purpose, scope, and data use](PURPOSE_AND_DATA_USE.md).
 
 ## System boundary
 
@@ -53,7 +57,7 @@ CI tests Rust, Next.js, Compose and the live web→API→database→MCP workflow
 
 ## Security and privacy controls
 
-Cookie-authenticated POST/PUT/PATCH/DELETE requests must carry an Origin that exactly matches the configured \`WEB_URL\`. Requests carrying only MCP bearer credentials do not rely on browser cookies, so they use bearer authentication independently. HTTPS deployment requires \`COOKIE_SECURE=true\` and a matching OAuth callback origin. X-Frame-Options and other standard browser security response headers are set in Next.js.
+Cookie-authenticated POST/PUT/PATCH/DELETE requests must carry an Origin that exactly matches the configured `WEB_URL`. Requests carrying only MCP bearer credentials do not rely on browser cookies, so they use bearer authentication independently. HTTPS deployment requires `COOKIE_SECURE=true` and a matching OAuth callback origin. X-Frame-Options and other standard browser security response headers are set in Next.js.
 
 The Privacy & Settings UI supports owner-scoped JSON export without OAuth secrets or raw Reddit posts, per-item evidence deletion, project deletion (preserving unassigned evidence), Reddit app disconnect with OAuth revocation, and account deletion. Account deletion is not blocked if a provider revocation attempt fails; the user is notified to revoke the app from Reddit's account settings. Deleted-user rows cascade through their research and API keys.
 
