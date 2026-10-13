@@ -69,12 +69,12 @@ curl --fail-with-body -sS -X POST "$api/projects" -H "Cookie: pil_session=$sessi
 test "$(sql "SELECT count(*) FROM information_schema.tables WHERE table_name='reddit_api_budgets'")" = 1
 # Deleting a project reassigns its evidence (rather than deleting unrelated research).
 project_id="$(curl --fail-with-body -sS "$api/projects" -H "Cookie: pil_session=$session" | jq -r '.[0].id')"
-curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
-  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 # Upsert of manually collected evidence must update its project assignment and source URL.
 manual_id="$(curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data "{\"source_kind\":\"manual\",\"source_id\":\"ci-manual-upsert\",\"source_url\":\"https://example.com/old-source\",\"title\":\"Initial link\",\"body\":\"Accessibility issue\",\"project_id\":\"$project_id\"}" | jq -r '.id')"
 curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-manual-upsert","source_url":"https://example.com/current-source","title":"Updated link","body":"Accessibility issue","project_id":null}' | jq -e --arg id "$manual_id" '.id == $id' >/dev/null
 test "$(sql "SELECT (project_id IS NULL)::text||':'||source_url FROM evidence WHERE id='$manual_id'")" = 'true:https://example.com/current-source'
+curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
+  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 curl --fail-with-body -sS "$api/privacy/export" -H "Cookie: pil_session=$session" | \
   jq -e '.account.reddit_username == "ci-researcher" and (.projects|length) == 0 and (.host_records|length) >= 2 and .truncated == false' >/dev/null
 # Revocable API credentials are shown only once; revoked credentials cannot call tools.
