@@ -1,0 +1,35 @@
+{
+  "notice": "SYNTHETIC AND FICTIONAL. These observations are invented only to exercise the system. They are not sourced from Reddit, GitHub, Medium, or real users.",
+  "observations": [
+    {
+      "id": "manual-release-notes",
+      "title": "Fictional volunteers repeat manual release tasks",
+      "body": "A fictional maintainer manually copies release checklist items into a spreadsheet every week. A small open-source checklist automation tool could help."
+    },
+    {
+      "id": "calendar-integration",
+      "title": "Fictional event planning integration difficulty",
+      "body": "A fictional community group cannot connect its event tool to an open calendar feed. Missing integration forces manual workarounds."
+    },
+    {
+      "id": "keyboard-navigation",
+      "title": "Fictional accessibility feature request",
+      "body": "A fictional accessibility contributor reports a missing feature for keyboard navigation in a sample utility. Further validation would be required."
+    },
+    {
+      "id": "documentation-timeout",
+      "title": "Fictional docs search slowdown",
+      "body": "A fictional contributor says documentation search is slow and sometimes times out. No actual software or community is identified."
+    },
+    {
+      "id": "setup-confusion",
+      "title": "Fictional onboarding complexity",
+      "body": "A fictional new contributor describes a confusing workflow with too many steps during an open-source project setup."
+    },
+    {
+      "id": "manual-audit-copying",
+      "title": "Fictional repetitive audit workflow",
+      "body": "A fictional volunteer copies results manually between spreadsheets and describes repetitive data entry. It is a demonstration, not observed evidence."
+    }
+  ]
+}
