@@ -115,6 +115,24 @@ fn uri(base:&str,pairs:&[(&str,&str)])->ApiResult<Url>{
     url.query_pairs_mut().extend_pairs(pairs.iter().copied());
     Ok(url)
 }
+/// Authors can ask to be hidden from logged-out viewers; collection is logged out, so skip them.
+fn bluesky_opted_out(post:&Value)->bool{
+    post.pointer("/author/labels").and_then(Value::as_array)
+        .is_some_and(|labels|labels.iter().any(|l|l["val"]=="!no-unauthenticated"))
+}
+fn bluesky_findings(v:&Value)->Vec<Finding>{
+    v["posts"].as_array().map(|a|a.iter().filter_map(|x|{
+        if bluesky_opted_out(x){return None;}
+        let id=raw(x,"/uri");let handle=raw(x,"/author/handle");
+        let rkey=id.rsplit('/').next()?.to_owned();
+        if !id.starts_with("at://")||!handle.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'.'||c==b'-')
+            || !rkey.bytes().all(|c|c.is_ascii_alphanumeric()){return None;}
+        Some(Finding{id,title:format!("Bluesky post by @{handle}"),body:short(&raw(x,"/record/text"),1200),
+            url:format!("https://bsky.app/profile/{handle}/post/{rkey}"),
+            published:get_date(&raw(x,"/record/createdAt")),
+            metadata:json!({"indexed_at":x["indexedAt"],"source":"Bluesky AppView (api.bsky.app)"})})
+    }).collect()).unwrap_or_default()
+}
 async fn collect_upstream(source:&str,q:&str,target:&str,limit:usize)->ApiResult<Vec<Finding>>{
     let client=Client::builder().timeout(std::time::Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::none()).build().map_err(internal)?;
@@ -158,18 +176,11 @@ async fn collect_upstream(source:&str,q:&str,target:&str,limit:usize)->ApiResult
             }).collect()).unwrap_or_default()
         },
         "bluesky"=>{
-            let u=uri("https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts",&[("q",q),("limit",&n)])?;
+            // public.api.bsky.app is a cached mirror that answers searchPosts with 403;
+            // api.bsky.app serves unauthenticated search.
+            let u=uri("https://api.bsky.app/xrpc/app.bsky.feed.searchPosts",&[("q",q),("limit",&n)])?;
             let v=get_json(&client,source,u,None).await?;
-            v["posts"].as_array().map(|a|a.iter().filter_map(|x|{
-                let id=raw(x,"/uri");let handle=raw(x,"/author/handle");
-                let rkey=id.rsplit('/').next()?.to_owned();
-                if !id.starts_with("at://")||!handle.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'.'||c==b'-')
-                    || !rkey.bytes().all(|c|c.is_ascii_alphanumeric()){return None;}
-                Some(Finding{id,title:format!("Bluesky post by @{handle}"),body:short(&raw(x,"/record/text"),1200),
-                url:format!("https://bsky.app/profile/{handle}/post/{rkey}"),
-                published:get_date(&raw(x,"/record/createdAt")),
-                metadata:json!({"indexed_at":x["indexedAt"],"source":"public Bluesky AppView"})})
-            }).collect()).unwrap_or_default()
+            bluesky_findings(&v)
         },
         "youtube"=>{
             let id=youtube_id(target)?;
@@ -244,7 +255,7 @@ pub async fn catalog()->Json<Value>{
         {"id":"github","name":"GitHub Issues","mode":"keyword","ready":true,"note":"Read-only public issues; rate-limited. Optional GitHub token."},
         {"id":"hackernews","name":"Hacker News","mode":"keyword","ready":true,"note":"Public comments via third-party Algolia HN index."},
         {"id":"stackoverflow","name":"Stack Overflow","mode":"keyword","ready":true,"note":"Stack Exchange API; respect CC BY-SA attribution and backoff."},
-        {"id":"bluesky","name":"Bluesky","mode":"keyword","ready":true,"note":"Public AppView search; endpoint may restrict unauthenticated requests."},
+        {"id":"bluesky","name":"Bluesky","mode":"keyword","ready":true,"note":"Unauthenticated AppView search (api.bsky.app); skips authors who opt out of logged-out visibility."},
         {"id":"youtube","name":"YouTube Comments","mode":"video","ready":youtube,"note":"Requires YouTube Data API key and a video ID; subject to quota."},
         {"id":"discourse","name":"Discourse Forums","mode":"forum","ready":discourse,"note":"Public search on explicitly allowlisted community domains."},
         {"id":"medium","name":"Medium RSS","mode":"tag","ready":true,"note":"Public topic RSS; article excerpts only, no paywalled content."}
@@ -285,6 +296,20 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
 #[cfg(test)]
 mod tests{
     use super::*;
+    #[test] fn bluesky_skips_opted_out_authors_and_bad_record_keys(){
+        let v=json!({"posts":[
+            {"uri":"at://did:plc:abc/app.bsky.feed.post/3kabc","author":{"handle":"alice.bsky.social","labels":[]},
+             "record":{"text":"invoicing is a nightmare","createdAt":"2026-10-01T00:00:00Z"},"indexedAt":"2026-10-01T00:00:01Z"},
+            {"uri":"at://did:plc:def/app.bsky.feed.post/3kdef","author":{"handle":"bob.bsky.social","labels":[{"val":"!no-unauthenticated"}]},
+             "record":{"text":"should not be collected"}},
+            {"uri":"at://did:plc:ghi/app.bsky.feed.post/bad$key","author":{"handle":"eve.bsky.social"},"record":{"text":"bad key"}}
+        ]});
+        let found=bluesky_findings(&v);
+        assert_eq!(found.len(),1);
+        assert_eq!(found[0].url,"https://bsky.app/profile/alice.bsky.social/post/3kabc");
+        assert!(found[0].body.contains("nightmare"));
+        assert!(found[0].published.is_some());
+    }
     #[test] fn bounds_and_untrusted_urls(){
         assert!(medium_tag("open-source").is_ok());
         assert!(medium_tag("../users").is_err());
