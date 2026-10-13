@@ -21,14 +21,14 @@ See [Purpose, scope, and data use](docs/PURPOSE_AND_DATA_USE.md) for the project
 
 ## What you can explore
 
-1. Select communities and, **when approved**, collect a bounded set of their public posts through Reddit OAuth.
-2. Choose a thread to retrieve and examine permitted comments.
-3. Record permitted evidence and its source, or send authorized evidence from a connected research host via MCP.
-4. Group recurring workflow issues, accessibility gaps, missing functionality, integration barriers, or other community needs.
-5. Review source-linked findings and form ideas for open-source utilities, integrations, documentation, accessibility improvements, and community tools.
+1. Browse public GitHub Issues, Hacker News comments, Stack Overflow questions, Bluesky posts, YouTube comments, allowlisted Discourse forums, and Medium topic RSS using read-only connectors.
+2. Optionally, when Reddit access is approved, collect bounded Reddit posts and thread comments through OAuth.
+3. Record permitted evidence, retaining the source reference, or send authorized evidence from a connected MCP research host.
+4. Group recurring workflow issues, accessibility gaps, missing functionality, and community needs.
+5. Review source-linked findings and generate proposals for open-source projects or contributions.
 6. Validate those ideas with independent research and community feedback before building.
 
-The built-in categorization is heuristic, not a measurement of community support or proof that a solution will succeed. Reddit API access, login, and live Reddit collection have **not** been externally verified with approved credentials.
+The built-in categorization is heuristic, not a measurement of community support or proof that a solution will succeed. Live third-party connectivity depends on each provider's access terms and quotas; Reddit API access and live OAuth remain unverified.
 
 ## Run locally
 
@@ -43,13 +43,15 @@ openssl rand -hex 32
 
 Add the generated value to `TOKEN_ENCRYPTION_KEY_HEX` in `.env`; set a strong `POSTGRES_PASSWORD`.
 
-**Current sign-in depends on Reddit OAuth.** Before first use through the dashboard, you need an approved Reddit developer application and `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, and an appropriate `REDDIT_USER_AGENT`. Set `REDDIT_API_APPROVED=true` **only after approval**. These settings do not themselves authorize access. Without them, the stack starts but browser sign-in and collection remain unavailable; local-only sign-in is not yet implemented.
+**Local login (recommended while Reddit is unavailable):** Run `openssl rand -hex 32` again and set its result as `LOCAL_LOGIN_TOKEN` in `.env`. Start the stack, then enter that token on the homepage to access the research workspace. This is a high-entropy local secret, not a reusable Reddit password. Local login is deliberately limited to localhost `WEB_URL`; do not expose the Docker stack publicly.
+
+**Optional Reddit connector:** Reddit collection still requires separately approved OAuth credentials (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, `REDDIT_USER_AGENT`). Set `REDDIT_API_APPROVED=true` only after approval. The other seven connectors do not depend on Reddit.
 
 ```bash
 docker compose up --build -d --wait
 ```
 
-Open **http://localhost:3000**. Database migrations apply automatically. The default Reddit request budgets are 30 requests/minute per app and 10 requests/minute per user; provider terms and actual limits take precedence. To stop without deleting data, use `docker compose down` (not `down -v`).
+Open **http://localhost:3000**. Select **Community Sources** to run a supported source search, then **Evidence Library** or **Community Discovery** for analysis. Database migrations apply automatically. The default Reddit request budgets are 30 requests/minute per app and 10 requests/minute per user; provider terms and actual limits take precedence. To stop without deleting data, use `docker compose down` (not `down -v`).
 
 ## Architecture
 
@@ -72,7 +74,9 @@ flowchart LR
 
 ### Current features
 
-- Read-only Reddit OAuth connector for bounded community posts and comments, when separately approved.
+- Seven read-only connectors for GitHub Issues, Hacker News (third-party Algolia index), Stack Overflow, Bluesky, YouTube comments, allowlisted Discourse forums and Medium RSS.
+- Optional, local-only token login so the research dashboard works without Reddit permissions.
+- Read-only Reddit OAuth connector for bounded posts and comments, when separately approved.
 - Evidence library, community research projects, source-reference tracking, theme clustering, saved findings, and background collection jobs.
 - 57 existing MCP tool names for source planning, host-assisted evidence ingestion, research annotations, synthesis, validation, and follow-on project planning. Some historical tool results are not fully compatible.
 - Personal data export, individual evidence/project deletion, account deletion, Reddit disconnect/token revocation, request budgets, and per-account MCP key management.
@@ -88,7 +92,7 @@ cd web && npm install && npm run typecheck && npm run build
 
 Run these in separate terminals when starting services directly. CI covers the Rust API, Next.js production build, Docker configuration and a PostgreSQL-backed integration flow. It does not establish approval or test real Reddit OAuth credentials.
 
-See [Architecture](docs/ARCHITECTURE.md) and [MCP host configuration](docs/MCP.md).
+See [Architecture](docs/ARCHITECTURE.md), [Source connector guide](docs/SOURCES.md), and [MCP host configuration](docs/MCP.md).
 
 ## License and data use
 
@@ -101,7 +105,7 @@ See [Architecture](docs/ARCHITECTURE.md) and [MCP host configuration](docs/MCP.m
 ## Limitations
 
 - Approved Reddit API access and live OAuth/revocation testing remain outstanding.
-- The dashboard does not yet offer independent local-only authentication.
+- Local login requires a deliberately configured 64-character random token and is limited to localhost; this is not a multi-tenant hosted login system.
 - No Reddit login bypass, scraping workaround, or commercial data license is implemented.
 - Scores and inferred themes should be checked against original sources and contradictory evidence.
 - Real-world acceptance, concurrency/load evaluation, and production security review remain separate from passing CI.

@@ -12,6 +12,7 @@ flowchart TB
   Host["Codex or Claude host"] -->|MCP stdio JSON-RPC| Bridge["Rust MCP bridge"]
   Bridge -->|revocable account bearer token| API
   API --> PG[("PostgreSQL 17")]
+  API -->|read-only provider requests| Sources["GitHub / HN / Stack Exchange / Bluesky / YouTube / Discourse / Medium RSS"]
   API -->|permissioned OAuth identity/read| Reddit["Reddit Data API"]
   Worker["Tokio worker"] --> PG
   Worker --> Reddit
@@ -23,6 +24,8 @@ All API, persistence, background worker logic, and MCP protocol handling are in 
 
 - `api/src/main.rs` — Axum routing, configuration, database connection, health and background tasks.
 - `api/src/oauth.rs` — CSRF state, OAuth code exchange, encrypted credentials, sessions, refresh and logout.
+- `api/src/local_auth.rs` — opt-in high-entropy localhost-only login independent of Reddit.
+- `api/src/sources.rs` — fixed-host, read-only provider adapters, bounded evidence persistence, and source budgets.
 - `api/src/reddit.rs` — authenticated Reddit API collection for bounded posts and comments.
 - `api/src/research.rs` — owner-scoped projects, evidence, scans, reports and opportunities.
 - `api/src/scoring.rs` — deterministic prioritization, including independent thread grouping.
@@ -35,6 +38,14 @@ All API, persistence, background worker logic, and MCP protocol handling are in 
 Migrations in `db/` define users, Reddit OAuth credentials, opaque session hashes, per-user research data, background jobs, and revocable MCP API keys. `mcp_records` stores user-owned jobs, search memory, host annotations, synthesized runs and workspaces with optimistic concurrency control.
 
 This is a **fresh PostgreSQL database**, not a historical data import. Deleting an account cascades through its records. Production deployments must also reconcile deleted Reddit content promptly and review backups/log retention.
+
+## Multi-source collection and local login
+
+A single authenticated user can discover public evidence from seven connectors through `GET /api/sources` and `POST /api/sources/collect`. Provider hosts are fixed, except for explicitly allowlisted Discourse forum hostnames. A separate HTTP client forbids redirects and caps provider payloads to 1 MB per request. Requests require same-origin browser sessions; per-account/source PostgreSQL budgets limit automated collection to four requests per minute, with provider quotas taking precedence. Evidence is deduplicated per owner/source/source ID and contains a short, source-linked excerpt.
+
+If `LOCAL_LOGIN_TOKEN` is configured with a new 32-byte hex secret, the operator can sign in locally without Reddit access. The API accepts local login only when `WEB_URL` is on localhost, sets a seven-day HttpOnly cookie, and creates a single local research identity. Do not deploy local-token login on a public internet origin. This is distinct from Reddit OAuth and does not authorize Reddit collection.
+
+See [Source connectors](SOURCES.md) for credential, quota and attribution limitations.
 
 ## Approved Reddit flow
 
