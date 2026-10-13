@@ -16,6 +16,9 @@ call platform_status '{}' | jq -e '.ok == true and .schemaTools == 57' >/dev/nul
 call ingest_evidence '{"items":[{"source_kind":"forum","external_id":"ci-one","source_name":"CI Forum","url":"https://example.com/one","title":"Manual reporting","text":"Manual spreadsheets slow down the team every week."}]}' | jq -e '.ingested == 1' >/dev/null
 call search_evidence '{"q":"spreadsheets"}' | jq -e '.returned == 1' >/dev/null
 call source_stats '{}' | jq -e '.total == 1' >/dev/null
+# Re-importing a source preserves its ID and updates its canonical link.
+call ingest_evidence '{"items":[{"source_kind":"forum","external_id":"ci-one","source_name":"CI Forum","url":"https://example.com/updated-source","title":"Manual reporting","text":"Manual spreadsheets slow down the team every week."}]}' | jq -e '.ingested == 1' >/dev/null
+call search_evidence '{"q":"spreadsheets"}' | jq -e '.returned == 1 and .items[0].url == "https://example.com/updated-source"' >/dev/null
 call analyze_pain_points '{"save_as":"integration scan"}' | jq -e '.report.evidence_scanned == 1' >/dev/null
 job="$(call create_research_job '{"topic":"Manual reporting bottlenecks"}' | jq -r '.job.job_id')"
 call get_research_search_plan "{\"job_id\":\"$job\"}" | jq -e '.missions | length >= 4' >/dev/null
@@ -29,6 +32,12 @@ call submit_llm_synthesis "{\"run_id\":\"$run\",\"clusters\":[{\"cluster_id\":\"
 workspace="$(call create_opportunity_workspace "{\"run_id\":\"$run\",\"opportunity_id\":\"reporting-saas\"}" | jq -r '.workspace.workspace_id')"
 call get_opportunity_execution_pack "{\"workspace_id\":\"$workspace\"}" | jq -e '.workspace.stage == "discovery"' >/dev/null
 call claim_research_job '{}' | jq -e '.job == null' >/dev/null
+# An interrupted MCP host must not strand its claimed job forever.
+orphan_job="$(call create_research_job '{"topic":"Abandoned host recovery"}' | jq -r '.job.job_id')"
+call claim_research_job '{"harness":"host-one"}' | jq -e --arg id "$orphan_job" '.job.job_id == $id and .job.claimed_by == "host-one"' >/dev/null
+call claim_research_job '{"harness":"host-two"}' | jq -e '.job == null' >/dev/null
+sql "UPDATE mcp_records SET payload=jsonb_set(payload,'{lease_until}',to_jsonb((now()-interval '1 minute')::text)) WHERE owner_id='$owner' AND kind='research-job' AND id='$orphan_job'" >/dev/null
+call claim_research_job '{"harness":"host-two"}' | jq -e --arg id "$orphan_job" '.job.job_id == $id and .job.claimed_by == "host-two"' >/dev/null
 call start_scrape_session "{\"job_id\":\"$job\"}" | jq -e '.session.status == "running"' >/dev/null
 call add_scrape_candidates "{\"job_id\":\"$job\",\"candidates\":[{\"url\":\"https://example.com/review-one\"}]}" | jq -e '.session.candidates | length == 1' >/dev/null
 call get_next_scrape_batch "{\"job_id\":\"$job\",\"limit\":1}" | jq -e '.batch | length == 1' >/dev/null
@@ -62,6 +71,10 @@ test "$(sql "SELECT count(*) FROM information_schema.tables WHERE table_name='re
 project_id="$(curl --fail-with-body -sS "$api/projects" -H "Cookie: pil_session=$session" | jq -r '.[0].id')"
 curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
+# Upsert of manually collected evidence must update its project assignment and source URL.
+manual_id="$(curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data "{\"source_kind\":\"manual\",\"source_id\":\"ci-manual-upsert\",\"source_url\":\"https://example.com/old-source\",\"title\":\"Initial link\",\"body\":\"Accessibility issue\",\"project_id\":\"$project_id\"}" | jq -r '.id')"
+curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-manual-upsert","source_url":"https://example.com/current-source","title":"Updated link","body":"Accessibility issue","project_id":null}' | jq -e --arg id "$manual_id" '.id == $id' >/dev/null
+test "$(sql "SELECT (project_id IS NULL)::text||':'||source_url FROM evidence WHERE id='$manual_id'")" = 'true:https://example.com/current-source'
 curl --fail-with-body -sS "$api/privacy/export" -H "Cookie: pil_session=$session" | \
   jq -e '.account.reddit_username == "ci-researcher" and (.projects|length) == 0 and (.host_records|length) >= 2 and .truncated == false' >/dev/null
 # Revocable API credentials are shown only once; revoked credentials cannot call tools.

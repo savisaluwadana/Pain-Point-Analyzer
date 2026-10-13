@@ -21,6 +21,12 @@ async function api<T>(path:string,options?:RequestInit):Promise<T>{
  return payload as T;
 }
 
+// A single optional endpoint failure must not invalidate an otherwise valid login.
+async function loadList<T>(request:Promise<T[]>,apply:(items:T[])=>void):Promise<boolean>{
+ try { apply(await request); return true; }
+ catch { apply([]); return false; }
+}
+
 export default function Home(){
  const [user,setUser]=useState<User|null>(null);
  const [projects,setProjects]=useState<Project[]>([]);
@@ -48,13 +54,28 @@ export default function Home(){
 
  const load=useCallback(async()=>{
    try {
-     const me=await api<User>('/me');setUser(me);
-     const [p,e,r,j,o,k,hr,hw,hj]=await Promise.all([
-       api<Project[]>('/projects'),api<Evidence[]>('/evidence?limit=200'),api<Run[]>('/research/runs'),
-       api<Job[]>('/research/jobs'),api<Opportunity[]>('/opportunities'),api<ApiKey[]>('/mcp/keys'),api<HostRun[]>('/mcp/runs'),api<HostWorkspace[]>('/mcp/workspaces'),api<HostJob[]>('/mcp/research-jobs')
-     ]);
-     setProjects(p);setItems(e);setRuns(r);setJobs(j);setOpportunities(o);setKeys(k);setHostRuns(hr);setHostWorkspaces(hw);setHostJobs(hj);
-   } catch(e){setUser(null);setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);setKeys([]);setHostRuns([]);setHostWorkspaces([]);setHostJobs([]);setNotice(e instanceof Error?e.message:'Unable to load');}
+     const me=await api<User>('/me');
+     setUser(me);
+   } catch(e){
+     setUser(null);
+     setProjects([]);setItems([]);setRuns([]);setJobs([]);setOpportunities([]);
+     setKeys([]);setHostRuns([]);setHostWorkspaces([]);setHostJobs([]);
+     setNotice(e instanceof Error?e.message:'Unable to authenticate');
+     return;
+   }
+   // Keep the authenticated session visible when a separate research endpoint is unavailable.
+   const results=await Promise.all([
+     loadList(api<Project[]>('/projects'),setProjects),
+     loadList(api<Evidence[]>('/evidence?limit=200'),setItems),
+     loadList(api<Run[]>('/research/runs'),setRuns),
+     loadList(api<Job[]>('/research/jobs'),setJobs),
+     loadList(api<Opportunity[]>('/opportunities'),setOpportunities),
+     loadList(api<ApiKey[]>('/mcp/keys'),setKeys),
+     loadList(api<HostRun[]>('/mcp/runs'),setHostRuns),
+     loadList(api<HostWorkspace[]>('/mcp/workspaces'),setHostWorkspaces),
+     loadList(api<HostJob[]>('/mcp/research-jobs'),setHostJobs)
+   ]);
+   if(results.some(success=>!success))setNotice('Some research sections could not load. Your session is still active; refresh to retry.');
  },[]);
  useEffect(()=>{void load();},[load]);
 

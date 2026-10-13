@@ -60,7 +60,7 @@ pub async fn ingest_evidence(State(st):State<AppState>,headers:HeaderMap,Json(bo
  }
  let title=body.title.unwrap_or_default().chars().take(500).collect::<String>();
  let text=body.body.unwrap_or_default().chars().take(10000).collect::<String>();
- let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET title=excluded.title,body=excluded.body,collected_at=now() RETURNING id")
+ let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=excluded.project_id,source_url=excluded.source_url,title=excluded.title,body=excluded.body,collected_at=now() RETURNING id")
   .bind(uid).bind(body.project_id).bind(&body.source_kind).bind(&body.source_id).bind(&body.source_url).bind(title).bind(text).fetch_one(&st.db).await.map_err(internal)?;
  Ok(Json(json!({"id":id})))
 }
@@ -76,7 +76,7 @@ pub(crate) async fn persist_posts(st:&AppState,uid:Uuid,posts:Vec<reddit::Reddit
  for post in posts{
    let url=format!("https://www.reddit.com{}",post.permalink);
    let published=DateTime::from_timestamp(post.created_utc as i64,0);
-   sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,author,published_at,metadata) VALUES($1,$2,'reddit',$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET title=excluded.title,body=excluded.body,author=excluded.author,metadata=excluded.metadata,collected_at=now()")
+   sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,author,published_at,metadata) VALUES($1,$2,'reddit',$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=excluded.project_id,source_url=excluded.source_url,title=excluded.title,body=excluded.body,author=excluded.author,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now()")
     .bind(uid).bind(project).bind(format!("t3_{}",post.id)).bind(url)
     .bind(post.title.chars().take(500).collect::<String>()).bind(post.selftext.chars().take(10000).collect::<String>())
     .bind(None::<String>).bind(published).bind(json!({"subreddit":post.subreddit,"score":post.score,"num_comments":post.num_comments}))
@@ -197,7 +197,7 @@ pub async fn thread(State(st):State<AppState>,headers:HeaderMap,Json(body):Json<
    let source_id=format!("{}:t1_{}",body.post_id,item.id);
    let url=if item.permalink.starts_with('/') {format!("https://www.reddit.com{}",item.permalink)}else{format!("https://www.reddit.com/comments/{}",body.post_id)};
    let published=DateTime::from_timestamp(item.created_utc as i64,0);
-   sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,body,published_at,metadata) VALUES($1,$2,'reddit-comment',$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET body=excluded.body,metadata=excluded.metadata,collected_at=now()")
+   sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,body,published_at,metadata) VALUES($1,$2,'reddit-comment',$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=excluded.project_id,source_url=excluded.source_url,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now()")
      .bind(uid).bind(body.project_id).bind(source_id).bind(url).bind(item.body)
      .bind(published).bind(json!({"thread_id":body.post_id,"score":item.score}))
      .execute(&mut *tx).await.map_err(internal)?;

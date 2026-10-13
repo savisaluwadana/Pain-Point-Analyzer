@@ -58,7 +58,7 @@ pub(super) async fn ingest(st:&AppState,owner:Uuid,args:&Value)->ApiResult<Value
   let title=string(&item,"title").chars().take(500).collect::<String>();
   let text=body.chars().take(10000).collect::<String>();
   let metadata=json!({"source_name":source,"community":community,"batch_id":batch,"tags":item["tags"],"ingested_by":"authorized-mcp-host","host_metadata":item["metadata"]});
-  let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,source_kind,source_id,source_url,title,body,metadata) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET collected_at=now(),title=excluded.title,body=excluded.body,metadata=excluded.metadata RETURNING id")
+  let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,source_kind,source_id,source_url,title,body,metadata) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET collected_at=now(),source_url=excluded.source_url,title=excluded.title,body=excluded.body,metadata=excluded.metadata RETURNING id")
    .bind(owner).bind(kind).bind(source_id).bind(url).bind(title).bind(text).bind(metadata)
    .fetch_one(&mut *tx).await.map_err(internal)?;
   ids.push(id);
