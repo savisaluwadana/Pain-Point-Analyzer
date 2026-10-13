@@ -71,7 +71,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
   },
   "get_research_search_plan"=>{
     let j=job(st,user,a).await?.value;
-    let topic=j["topic"].as_str().unwrap_or("customer pain");
+    let topic=j["topic"].as_str().unwrap_or("community needs");
     let memory=&j["search_memory"];
     Ok(json!({"job_id":j["id"],"topic":topic,"pass":j["pass"],"source_policy":"Host must independently browse authorized websites; app never bypasses restrictions.",
       "missions":[
@@ -215,10 +215,10 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
  }
 }
 async fn claim(st:&AppState,user:Uuid,a:&Value)->ApiResult<Value>{
- // FOR UPDATE SKIP LOCKED ensures one host claims a queued job at a time.
+ // FOR UPDATE SKIP LOCKED ensures one host at a time; expired claims are recoverable after a host crash.
  let mut tx=st.db.begin().await.map_err(internal)?;
  let row:Option<(String,Value,i64)>=sqlx::query_as(
-  "SELECT id,payload,version FROM mcp_records WHERE owner_id=$1 AND kind='research-job' AND payload->>'status'='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1")
+  "SELECT id,payload,version FROM mcp_records WHERE owner_id=$1 AND kind='research-job' AND (payload->>'status'='queued' OR (payload->>'status' IN ('claimed','collecting') AND (payload->>'lease_until')::timestamptz<now())) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1")
   .bind(user).fetch_optional(&mut *tx).await.map_err(internal)?;
  let Some((id,mut payload,version))=row else{return Ok(json!({"job":null,"message":"No queued research jobs"}));};
  payload["status"]=json!("claimed");
