@@ -59,6 +59,8 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/evidence)" = 401
       - name: End-to-end MCP, research workflows and tenant isolation
         run: bash scripts/test_mcp.sh
+      - name: Offline first-run demo (no external API keys)
+        run: bash scripts/try-demo.sh
       - name: Capture diagnostics
         if: always()
         run: docker compose logs --tail=100

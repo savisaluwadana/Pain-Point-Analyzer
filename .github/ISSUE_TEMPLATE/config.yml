@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosures
+    url: https://github.com/savisaluwadana/Reddit-post-Analyzer/blob/main/SECURITY.md
+    about: Please report vulnerabilities privately, not in public issues.
+  - name: Setup and help
+    url: https://github.com/savisaluwadana/Reddit-post-Analyzer/blob/main/SUPPORT.md
+    about: Start with the demo and support guidance before opening an issue.

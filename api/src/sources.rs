@@ -154,7 +154,7 @@ async fn collect_upstream(source:&str,q:&str,target:&str,limit:usize)->ApiResult
                 if !url.starts_with("https://stackoverflow.com/"){return None;}
                 Some(Finding{id:id.to_string(),title:html_text(&raw(x,"/title")),body:html_text(&raw(x,"/body")),
                 url,published:x["creation_date"].as_i64().and_then(|t|DateTime::from_timestamp(t,0)),
-                metadata:json!({"score":x["score"],"tags":x["tags"],"author":raw(x,"/owner/display_name"),"license":"CC BY-SA","license_url":"https://creativecommons.org/licenses/by-sa/4.0/"})})
+                metadata:json!({"score":x["score"],"tags":x["tags"],"author":raw(x,"/owner/display_name"),"license":"CC BY-SA; version depends on post date","license_url":"https://stackoverflow.com/help/licensing"})})
             }).collect()).unwrap_or_default()
         },
         "bluesky"=>{
