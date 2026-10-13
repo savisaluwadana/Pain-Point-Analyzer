@@ -1,4 +1,8 @@
-# Pain Intelligence Lab — Rust architecture
+# Open Source Discovery Lab — Rust architecture
+
+## Purpose and operator scope
+
+Open Source Discovery Lab is currently intended for individual, local, non-commercial research into recurring needs discussed in online communities, with the aim of identifying possible open-source software contributions. The existing implementation includes broader analytical modules, but these do not authorize commercial use of Reddit data. Read the scope and permissions in [Purpose, scope, and data use](PURPOSE_AND_DATA_USE.md).
 
 ## System boundary
 

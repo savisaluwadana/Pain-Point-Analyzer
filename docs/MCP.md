@@ -1,10 +1,10 @@
-# Connect a host to the native Rust MCP server
+# Connect a research host to Open Source Discovery Lab
 
-The Rust binary implements **JSON-RPC 2.0 over stdio** and advertises the original **57 MCP schemas**. All server-side tool actions require a revocable API credential tied to a PostgreSQL user. The host model performs permitted web browsing, semantic reasoning and report drafting; the app performs state, evidence, reconciliation and workflow validation.
+The Rust binary implements **JSON-RPC 2.0 over stdio** and advertises the original **57 MCP schemas**. All server-side tool actions require a revocable API credential tied to a PostgreSQL user. For the current non-commercial, open-source-idea discovery workflow, a connected host may perform permitted web browsing, semantic reasoning and research summaries; the app performs state, evidence, reconciliation and workflow validation.
 
 ## Setup
 
-1. Start the v2 Docker stack with `docker compose -f compose.yaml --env-file .env up --build -d --wait`.
+1. Start the Docker stack with `docker compose -f compose.yaml --env-file .env up --build -d --wait`.
 2. Sign in through Reddit OAuth using an approved application. There is no hidden browser-cookie scraping shortcut.
 3. Open **MCP Integrations** in the new Next.js dashboard, create a labeled key and copy the one-time secret. Keys are hashed in PostgreSQL and can be revoked without deleting research.
 4. Install a Rust toolchain on the machine running the MCP host, or copy a release-built Rust binary to that machine.
@@ -34,7 +34,7 @@ Example Claude Desktop / compatible MCP configuration:
 }
 ```
 
-Do not commit a live host configuration or paste an API key into an issue. When the host runs on another machine, make the v2 web endpoint reachable only over authorized HTTPS and configure the appropriate URL.
+Do not commit a live host configuration or paste an API key into an issue. When the host runs on another machine, make the web endpoint reachable only over authorized HTTPS and configure the appropriate URL.
 
 ## Tool workflow
 
@@ -66,6 +66,10 @@ platform_status
 All tool schemas are copied directly from the v1 generated reference in `api/src/mcp_catalog.json`. New state is stored in `mcp_records`, indexed by owner, object kind and object ID. API keys are scoped per account and are never returned again after creation. Workflow mutations use optimistic version checks; conflicting writes return HTTP 409 instead of silently overwriting changes.
 
 The historical v1 tool *names and input schemas* are preserved; **the Rust implementation is not a byte-for-byte output-contract replacement**. Downstream host prompts/scripts that rely on exact response shapes must undergo compatibility testing, especially in scraping and quality summaries.
+
+## Intended use and restrictions
+
+The present project focuses on local, non-commercial exploration of community needs to propose useful open-source contributions. Some legacy tools include market-comparison, build, and go-to-market planning contracts; their availability does not grant commercial rights to third-party data. Do not use Reddit content for commercialization without separately securing appropriate permission. See [Purpose and data use](PURPOSE_AND_DATA_USE.md).
 
 ## Important limitations
 
