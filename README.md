@@ -1,6 +1,12 @@
 # Open Source Discovery Lab
 
+> **Early community alpha · MIT licensed · local/self-hosted.** Join as a tester or contributor. Do not deploy this version as an internet-facing service.
+
 **From community conversations to useful open-source projects.**
+
+**Get started:** [Five-minute fictional demo](docs/DEMO.md) · [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md) · [Known limitations](#limitations) · [Give alpha feedback](https://github.com/savisaluwadana/Reddit-post-Analyzer/issues/new/choose)
+
+This project analyzes short, source-linked observations so contributors can **investigate** recurring challenges and potential open-source contributions. Themes are provisional hypotheses, not endorsements, verified demand, or a substitute for reading the original discussions.
 
 Open Source Discovery Lab is a locally operated research workspace for identifying recurring challenges, unmet needs, and opportunities to contribute practical software to the open-source ecosystem. Its **current intended use is individual and non-commercial**: organize permitted community evidence, understand recurring issues, and explore freely available tools that could help address them.
 
@@ -30,28 +36,44 @@ See [Purpose, scope, and data use](docs/PURPOSE_AND_DATA_USE.md) for the project
 
 The built-in categorization is heuristic, not a measurement of community support or proof that a solution will succeed. Live third-party connectivity depends on each provider's access terms and quotas; Reddit API access and live OAuth remain unverified.
 
-## Run locally
+## Quick start: try it without external API credentials
 
-Requirements: Docker Engine and Docker Compose v2.
+Requirements: Docker Engine, Docker Compose v2, OpenSSL, `curl` and `jq`. Source code is public and [MIT-licensed](LICENSE), but third-party discussions retain their own terms and licenses.
 
 ```bash
 git clone https://github.com/savisaluwadana/Reddit-post-Analyzer.git
 cd Reddit-post-Analyzer
 cp .env.example .env
-openssl rand -hex 32
 ```
 
-Add the generated value to `TOKEN_ENCRYPTION_KEY_HEX` in `.env`; set a strong `POSTGRES_PASSWORD`.
+Generate three **different** secret values and paste them into `.env`:
 
-**Local login (recommended while Reddit is unavailable):** Run `openssl rand -hex 32` again and set its result as `LOCAL_LOGIN_TOKEN` in `.env`. Start the stack, then enter that token on the homepage to access the research workspace. This is a high-entropy local secret, not a reusable Reddit password. Local login is deliberately limited to localhost `WEB_URL`; do not expose the Docker stack publicly.
+```bash
+openssl rand -hex 32 # TOKEN_ENCRYPTION_KEY_HEX (32 bytes, hex)
+openssl rand -hex 32 # LOCAL_LOGIN_TOKEN (local sign-in secret)
+openssl rand -hex 24 # POSTGRES_PASSWORD (safe alphanumeric hex)
+```
 
-**Optional Reddit connector:** Reddit collection still requires separately approved OAuth credentials (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, `REDDIT_USER_AGENT`). Set `REDDIT_API_APPROVED=true` only after approval. The other seven connectors do not depend on Reddit.
+Then run:
 
 ```bash
 docker compose up --build -d --wait
+bash scripts/try-demo.sh
 ```
 
-Open **http://localhost:3000**. Select **Community Sources** to run a supported source search, then **Evidence Library** or **Community Discovery** for analysis. Database migrations apply automatically. The default Reddit request budgets are 30 requests/minute per app and 10 requests/minute per user; provider terms and actual limits take precedence. To stop without deleting data, use `docker compose down` (not `down -v`).
+The script inserts **six invented observations** (no scraping or API tokens) into an isolated demo project, runs the rule-based theme analysis, and prints the result. Open **http://localhost:3000**; enter your `LOCAL_LOGIN_TOKEN` to sign in. Go to **Evidence Library** or **Analyze & Discover**. See [the step-by-step walkthrough](docs/DEMO.md) for cleanup and troubleshooting.
+
+Once that works, try **Community Sources** with a permitted public API. Source terms, quotas and availability still apply; [connector guide](docs/SOURCES.md).
+
+## Manual setup details
+
+To run the app without the demo, configure `.env` as described above and run `docker compose up --build -d --wait`. The application does not require Reddit API credentials for local research. Do not commit or share your `.env`.
+
+**Local login:** Enter the generated `LOCAL_LOGIN_TOKEN` on the homepage. The shared local key creates a single research identity, not separate end-user accounts. It is deliberately limited to localhost `WEB_URL`; **do not publish the Docker ports or place it behind a public tunnel**.
+
+**Optional Reddit connector:** Reddit collection still requires separately approved OAuth credentials (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, `REDDIT_USER_AGENT`). Set `REDDIT_API_APPROVED=true` only after approval. The other seven connectors do not depend on Reddit.
+
+After configuring secrets, run `docker compose up --build -d --wait`. Open **http://localhost:3000**. Choose **Community Sources** to run a permitted source search, then **Evidence Library** or **Analyze & Discover** for analysis. Migrations apply automatically. To stop without deleting data, use `docker compose down` (not `down -v`). Provider terms and quotas take precedence over internal request budgets.
 
 ## Architecture
 
@@ -69,6 +91,7 @@ flowchart LR
   Host["Optional AI research host"] --> MCP["Rust MCP bridge"]
   MCP --> API
   API --> PG[("PostgreSQL")]
+  API -->|Read-only API or RSS| Sources["GitHub / HN / Stack Exchange / Bluesky / YouTube / Discourse / Medium"]
   API -->|Approved OAuth only| Reddit["Reddit Data API"]
 ```
 
@@ -110,3 +133,12 @@ See [Architecture](docs/ARCHITECTURE.md), [Source connector guide](docs/SOURCES.
 - Scores and inferred themes should be checked against original sources and contradictory evidence.
 - Real-world acceptance, concurrency/load evaluation, and production security review remain separate from passing CI.
 - Historical MongoDB data is not imported; this is a fresh PostgreSQL application.
+- Collection is one page per click, not continuous monitoring. Public adapters are **not yet live-certified** against every provider.
+- Built-in topic analysis is keyword-based; the optional MCP host performs separate model reasoning.
+- The GitHub release tag `v-1.0` is from an older codebase. New alpha release notes are a [draft](docs/ALPHA_RELEASE_NOTES.md), not a published stable release.
+
+## Community and support
+
+This is a call for **alpha testers and contributors**. Try the [fictional six-item demo](docs/DEMO.md), then tell us what succeeded or failed with the [alpha feedback issue template](https://github.com/savisaluwadana/Reddit-post-Analyzer/issues/new/choose). Please do not attach tokens or real private post text.
+
+Start with [CONTRIBUTING](CONTRIBUTING.md) for PRs and tests, [ROADMAP](docs/ROADMAP.md) for high-impact tasks, [SUPPORT](SUPPORT.md) for help, [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md) for participation, and [SECURITY](SECURITY.md) for **private** vulnerability reporting. Maintainers review contributions as time allows; no SLA is promised.
