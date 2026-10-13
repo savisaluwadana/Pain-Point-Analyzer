@@ -4,7 +4,7 @@
 
 Open Source Discovery Lab is designed to help an individual developer discover recurring challenges, gaps, accessibility needs, and requests described by people in public online communities. The research is intended to inspire ideas for useful software that could be developed and shared as open-source projects.
 
-The current planned operation is **local, individual, and non-commercial**. This is a statement about the operator's present intended use, not a claim that Reddit has approved API access or that the source code is already distributed under an open-source license.
+The current planned operation is **local, individual, and non-commercial**. This describes the operator's present intended use, not a claim that Reddit has approved API access. The application's original source code is distributed under the [MIT License](../LICENSE); that software license does not authorize access to, redistribution of, or commercial use of Reddit content.
 
 Examples include:
 - Finding repeated difficulties with interoperability and exploring a community-maintained integration.
@@ -42,7 +42,7 @@ The collector currently uses selected subreddit top posts for the past month; it
 - A Reddit-independent local login; Reddit OAuth is still required for the dashboard's authentication flow.
 - Fully automated external website scraping. MCP tools coordinate a **connected host** that must independently respect source permissions.
 - Complete reconstruction of all historical context or exact compatibility with previous MCP tool outputs.
-- Legally open-source distribution of this repository's code: an explicit OSS license has not yet been added.
+- Any authorization to use Reddit or other third-party material beyond its separate terms; MIT licenses the project's code, not third-party content.
 
 The research engine retains optional general-purpose validation, planning and market-comparison capabilities from an earlier iteration. **They are not the reason for the requested non-commercial Reddit access and must not be treated as permission for commercial use of the resulting Reddit data.**
 
