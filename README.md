@@ -19,7 +19,7 @@ This project was previously presented as *Pain Intelligence Lab*. The GitHub rep
 - **Listen before building.** Explore what community members are describing, including alternative views and existing solutions.
 - **Contribute openly.** Use findings to inspire projects that can be shared and improved with others. Identified ideas are proposals, not endorsements by Reddit users.
 - **Respect community members.** Avoid profiling individuals, selling or redistributing Reddit content, unsolicited contact, or automated posting/voting.
-- **Use permitted data sources.** Reddit access requires the operator's separately approved, read-only OAuth permissions. Do not use browser-cookie scraping or undocumented API workarounds.
+- **Use permitted data sources.** Direct Reddit API access requires separately approved OAuth permissions. The optional Arctic Shift connector reads a third-party archive without Reddit credentials; its availability does not grant content-use rights. No browser cookies are used.
 - **Keep scope small.** The current setup is designed for a single local operator, with bounded requests and short default Reddit evidence retention.
 - **Stay transparent.** Optional host-assisted research tools can also plan market comparisons, experiments, and project execution. Their presence does not constitute an authorization to use Reddit data commercially. If the project changes purpose, re-evaluate permissions before using Reddit-derived material for that purpose.
 
@@ -71,7 +71,9 @@ To run the app without the demo, configure `.env` as described above and run `do
 
 **Local login:** Enter the generated `LOCAL_LOGIN_TOKEN` on the homepage. The shared local key creates a single research identity, not separate end-user accounts. It is deliberately limited to localhost `WEB_URL`; **do not publish the Docker ports or place it behind a public tunnel**.
 
-**Optional Reddit connector:** Reddit collection still requires separately approved OAuth credentials (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, `REDDIT_USER_AGENT`). Set `REDDIT_API_APPROVED=true` only after approval. The other seven connectors do not depend on Reddit.
+**Browser-free archive pilot:** Choose **Reddit archive (Arctic Shift)** under Sources, or call `collect_reddit_archive` through MCP. See the [setup, sampling limits and test steps](docs/ARCTIC_SHIFT.md). No Reddit OAuth credentials are needed for archive collection.
+
+**Optional direct Reddit connector:** Reddit collection still requires separately approved OAuth credentials (`REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_REDIRECT_URI`, `REDDIT_USER_AGENT`). Set `REDDIT_API_APPROVED=true` only after approval. The other seven connectors do not depend on Reddit.
 
 After configuring secrets, run `docker compose up --build -d --wait`. Open **http://localhost:3000**. Choose **Community Sources** to run a permitted source search, then **Evidence Library** or **Analyze & Discover** for analysis. Migrations apply automatically. To stop without deleting data, use `docker compose down` (not `down -v`). Provider terms and quotas take precedence over internal request budgets.
 

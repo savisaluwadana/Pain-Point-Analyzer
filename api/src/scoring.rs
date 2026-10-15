@@ -22,9 +22,9 @@ pub fn analyze(evidence:&[EvidenceText])->Report{
  let mut unique=HashSet::new();
  let mut groups:HashMap<&str,(HashSet<String>,Vec<Uuid>,Vec<String>,f64)>=HashMap::new();
  for item in evidence {
-   let key=if item.source_kind=="reddit" && item.source_id.starts_with("t3_"){
+   let key=if matches!(item.source_kind.as_str(),"reddit"|"reddit-archive") && item.source_id.starts_with("t3_"){
      format!("reddit-thread:{}",item.source_id.trim_start_matches("t3_"))
-   }else if item.source_kind=="reddit-comment"{
+   }else if matches!(item.source_kind.as_str(),"reddit-comment"|"reddit-archive-comment"){
      let thread=item.source_id.split(':').next().unwrap_or(&item.source_id);
      format!("reddit-thread:{thread}")
    }else{format!("{}:{}",item.source_kind,item.source_id)};
@@ -50,6 +50,13 @@ pub fn analyze(evidence:&[EvidenceText])->Report{
 #[cfg(test)]
 mod tests {
  use super::*;
+ #[test] fn archive_and_oauth_replies_count_as_one_thread() {
+  let items=[("reddit","t3_abc"),("reddit-archive","t3_abc"),("reddit-archive-comment","abc:def"),("reddit-comment","abc:ghi")]
+   .into_iter().map(|(kind,id)|EvidenceText{id:Uuid::new_v4(),source_id:id.into(),source_kind:kind.into(),text:"manual spreadsheet".into()}).collect::<Vec<_>>();
+  let result=analyze(&items);
+  assert_eq!(result.independent_stories,1);
+  assert_eq!(result.clusters[0].independent_stories,1);
+ }
  #[test] fn counts_independent_stories() {
   let id=Uuid::new_v4();
   let items=vec![

@@ -12,10 +12,16 @@ call() {
   curl --fail-with-body -sS "$api/mcp/execute" -H "Authorization: Bearer $token" -H "Content-Type: application/json" --data "{\"name\":\"$name\",\"arguments\":$args}"
 }
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/mcp/execute" -H 'Content-Type: application/json' --data '{"name":"platform_status","arguments":{}}')" = 401
-call platform_status '{}' | jq -e '.ok == true and .schemaTools == 57' >/dev/null
+call platform_status '{}' | jq -e '.ok == true and .schemaTools == 58' >/dev/null
 call ingest_evidence '{"items":[{"source_kind":"forum","external_id":"ci-one","source_name":"CI Forum","url":"https://example.com/one","title":"Manual reporting","text":"Manual spreadsheets slow down the team every week."}]}' | jq -e '.ingested == 1' >/dev/null
 call search_evidence '{"q":"spreadsheets"}' | jq -e '.returned == 1' >/dev/null
 call source_stats '{}' | jq -e '.total == 1' >/dev/null
+# Archive connector is available without Reddit credentials. Invalid targets must fail
+# before any upstream request or budget reservation; CI never calls the live archive.
+curl --fail-with-body -sS "$api/sources" | jq -e '.sources[] | select(.id == "arctic-shift" and .ready == true)' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/mcp/execute" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data '{"name":"collect_reddit_archive","arguments":{"subreddit":"../invalid"}}')" = 400
+test "$(sql "SELECT count(*) FROM archive_provider_budget")" = 0
+
 # Re-importing a source preserves its ID and updates its canonical link.
 call ingest_evidence '{"items":[{"source_kind":"forum","external_id":"ci-one","source_name":"CI Forum","url":"https://example.com/updated-source","title":"Manual reporting","text":"Manual spreadsheets slow down the team every week."}]}' | jq -e '.ingested == 1' >/dev/null
 call search_evidence '{"q":"spreadsheets"}' | jq -e '.returned == 1 and .items[0].url == "https://example.com/updated-source"' >/dev/null

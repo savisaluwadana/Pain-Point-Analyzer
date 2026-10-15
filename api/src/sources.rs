@@ -17,6 +17,10 @@ pub struct CollectInput {
     target:Option<String>,
     project_id:Option<Uuid>,
     limit:Option<usize>,
+    days:Option<i64>,
+    ranking:Option<String>,
+    sample_size:Option<usize>,
+    post_id:Option<String>,
 }
 #[derive(Clone,Debug)]
 struct Finding {
@@ -252,6 +256,7 @@ pub async fn catalog()->Json<Value>{
     let youtube=env::var("YOUTUBE_API_KEY").is_ok_and(|v|!v.trim().is_empty());
     let discourse=env::var("DISCOURSE_ALLOWED_HOSTS").is_ok_and(|v|!v.trim().is_empty());
     Json(json!({"sources":[
+        {"id":"arctic-shift","name":"Reddit archive (Arctic Shift)","mode":"subreddit","ready":true,"note":"No Reddit login/key. Archived samples, not live rankings. One subreddit per call; pace calls at least 10 seconds apart. Review data-use terms."},
         {"id":"github","name":"GitHub Issues","mode":"keyword","ready":true,"note":"Read-only public issues; rate-limited. Optional GitHub token."},
         {"id":"hackernews","name":"Hacker News","mode":"keyword","ready":true,"note":"Public comments via third-party Algolia HN index."},
         {"id":"stackoverflow","name":"Stack Overflow","mode":"keyword","ready":true,"note":"Stack Exchange API; respect CC BY-SA attribution and backoff."},
@@ -264,6 +269,12 @@ pub async fn catalog()->Json<Value>{
 pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<CollectInput>)->ApiResult<Json<Value>>{
     let user=oauth::user_id(&st,&headers).await?;
     assert_project(&st,user,req.project_id).await?;
+    if req.source=="arctic-shift" {
+        return Ok(Json(crate::archive::collect(&st,user,crate::archive::Request {
+            subreddit:req.target.unwrap_or_default().trim().to_owned(),query:req.query,days:req.days,
+            limit:req.limit,sample_size:req.sample_size,ranking:req.ranking,post_id:req.post_id,project_id:req.project_id,
+        }).await?));
+    }
     if !supported(&req.source){return Err(bad("Unsupported source"));}
     let q=req.query.as_deref().unwrap_or("").trim();
     let target=req.target.as_deref().unwrap_or("").trim();

@@ -13,7 +13,7 @@ type HostWorkspace={id:string;stage:string;opportunity:{title:string;problem:str
 type HostJob={id:string;topic:string;status:string;pass:number};
 type ApiKey={id:string;label:string;created_at:string;last_used_at:string|null};
 type Opportunity={id:string;title:string;problem:string;score:number;evidence_refs:string[];created_at:string};
-type SourceOption={id:string;name:string;mode:'keyword'|'video'|'forum'|'tag';ready:boolean;note:string};
+type SourceOption={id:string;name:string;mode:'keyword'|'video'|'forum'|'tag'|'subreddit';ready:boolean;note:string};
 type SourceCatalog={sources:SourceOption[]};
 
 
@@ -51,6 +51,9 @@ export default function Home(){
  const [sourceQuery,setSourceQuery]=useState('feature request');
  const [sourceTarget,setSourceTarget]=useState('');
  const [sourceResult,setSourceResult]=useState('');
+ const [archiveRanking,setArchiveRanking]=useState('top');
+ const [archiveDays,setArchiveDays]=useState(30);
+ const [archivePost,setArchivePost]=useState('');
 
  const [threadId,setThreadId]=useState('');
  const [manualTitle,setManualTitle]=useState('');
@@ -146,13 +149,19 @@ export default function Home(){
    </div>}
    {tab==='sources'&&<div className="two-col">
      <section className="panel"><div className="panel-heading"><span className="eyebrow">READ-ONLY COMMUNITY CONNECTORS</span><h2>Collect source-linked evidence</h2><p>Alpha preview: start with GitHub or try the <a href="https://github.com/savisaluwadana/Reddit-post-Analyzer/blob/main/docs/DEMO.md" target="_blank" rel="noopener noreferrer">offline sample walkthrough ↗</a>. Sources have quotas and may refuse access. No Reddit API credentials required.</p></div>
-      <label htmlFor="sourceSelect">Source</label><select id="sourceSelect" value={source} onChange={e=>{setSource(e.target.value);setSourceResult('');if(e.target.value==='medium')setSourceQuery('open-source');else if(e.target.value==='youtube')setSourceQuery('');else setSourceQuery('feature request');setSourceTarget('');}}>{catalog.map(s=><option key={s.id} value={s.id}>{s.name}{s.ready?'':' (needs configuration)'}</option>)}</select>
+      <label htmlFor="sourceSelect">Source</label><select id="sourceSelect" value={source} onChange={e=>{setSource(e.target.value);setSourceResult('');if(e.target.value==='medium')setSourceQuery('open-source');else if(e.target.value==='youtube'||e.target.value==='arctic-shift')setSourceQuery('');else setSourceQuery('feature request');setSourceTarget('');}}>{catalog.map(s=><option key={s.id} value={s.id}>{s.name}{s.ready?'':' (needs configuration)'}</option>)}</select>
       {chosenSource&&<p className="disclaimer">{chosenSource.note}</p>}
-      <label htmlFor="sourceQuery">{chosenSource?.mode==='tag'?'Medium topic tag':chosenSource?.mode==='video'?'Optional comment search filter':'Search topic or phrase'}</label>
+      <label htmlFor="sourceQuery">{chosenSource?.mode==='subreddit'?'Optional phrase filter within the sample':chosenSource?.mode==='tag'?'Medium topic tag':chosenSource?.mode==='video'?'Optional comment search filter':'Search topic or phrase'}</label>
       <input id="sourceQuery" value={sourceQuery} onChange={e=>setSourceQuery(e.target.value)} placeholder={chosenSource?.mode==='tag'?'open-source':'missing feature'}/>
-      {(chosenSource?.mode==='video'||chosenSource?.mode==='forum')&&<><label htmlFor="sourceTarget">{chosenSource.mode==='video'?'YouTube video ID':'Allowlisted Discourse hostname'}</label><input id="sourceTarget" value={sourceTarget} onChange={e=>setSourceTarget(e.target.value)} placeholder={chosenSource.mode==='video'?'dQw4w9WgXcQ':'meta.discourse.org'}/></>}
+      {(chosenSource?.mode==='video'||chosenSource?.mode==='forum'||chosenSource?.mode==='subreddit')&&<><label htmlFor="sourceTarget">{chosenSource.mode==='subreddit'?'Subreddit (without r/)':chosenSource.mode==='video'?'YouTube video ID':'Allowlisted Discourse hostname'}</label><input id="sourceTarget" value={sourceTarget} onChange={e=>setSourceTarget(e.target.value)} placeholder={chosenSource.mode==='subreddit'?'freelance':chosenSource.mode==='video'?'dQw4w9WgXcQ':'meta.discourse.org'}/></>}
+      {source==='arctic-shift'&&<>
+       <label htmlFor="archiveRanking">Selection within the archive sample</label><select id="archiveRanking" value={archiveRanking} onChange={e=>setArchiveRanking(e.target.value)}><option value="top">Highest archived scores</option><option value="mid">Middle of score ranking</option><option value="new">Newest</option></select>
+       <label htmlFor="archiveDays">Look back (days)</label><input id="archiveDays" type="number" min={1} max={365} value={archiveDays} onChange={e=>setArchiveDays(Number(e.target.value))}/>
+       <label htmlFor="archivePost">Optional post ID for comments</label><input id="archivePost" value={archivePost} onChange={e=>setArchivePost(e.target.value)} placeholder="Leave blank to collect posts"/>
+       <p className="disclaimer">Selects up to 10 items from at most 100 recent archive records. Scores may be stale. Wait at least 10 seconds between calls. Use no more than 10 communities per research run.</p>
+      </>}
       <label htmlFor="sourceProject">Research project</label><select id="sourceProject" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Unassigned evidence</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
-      <button className="primary" disabled={!user||busy||!chosenSource||!chosenSource.ready} onClick={()=>void act(async()=>{const result=await api<{saved:number}>('/sources/collect',{method:'POST',body:JSON.stringify({source,query:sourceQuery,target:sourceTarget,project_id,limit:15})});setSourceResult(result.saved+' new or updated evidence records saved');},'Source collection completed')}>{busy?'Collecting…':'Collect source evidence →'}</button>
+      <button className="primary" disabled={!user||busy||!chosenSource||!chosenSource.ready} onClick={()=>void act(async()=>{const result=await api<{saved:number;fetched?:number;eligible?:number;note?:string}>('/sources/collect',{method:'POST',body:JSON.stringify({source,query:sourceQuery,target:sourceTarget,project_id,limit:source==='arctic-shift'?10:15,...(source==='arctic-shift'?{days:archiveDays,ranking:archiveRanking,sample_size:100,post_id:archivePost.trim()||undefined}:{})})});setSourceResult(result.saved+' new or updated evidence records saved'+(result.fetched!==undefined?' from '+result.fetched+' fetched / '+result.eligible+' eligible. '+result.note:''));},'Source collection completed')}>{busy?'Collecting…':'Collect source evidence →'}</button>
       {sourceResult&&<p className="disclaimer" role="status">{sourceResult}</p>}
      </section>
      <section className="panel"><div className="panel-heading"><span className="eyebrow">CONNECTOR STATUS</span><h2>Supported sources</h2></div><div className="list">{catalog.map(s=><div key={s.id} className="list-item"><b>{s.name}</b><span className="pill">{s.ready?'Available to try':'Credentials / allowlist needed'}</span><p>{s.note}</p></div>)}</div><p className="disclaimer">Content rights, API quotas, and provider policies still apply. Confirm original context before building an open-source project.</p></section>
@@ -177,14 +186,14 @@ export default function Home(){
        {hostWorkspaces.length?<div className="cluster-grid">{hostWorkspaces.map(w=><div className="cluster" key={w.id}><span className="pill">{w.stage}</span><h3>{w.opportunity?.title||'Untitled opportunity'}</h3><p>{w.opportunity?.problem||''}</p><small>{(w.experiments||[]).length} validation experiments</small></div>)}</div>:<p className="empty">Create opportunity workspaces through the MCP research workflow.</p>}
      </section>
    </div>}
-   {tab==='integrations'&&<section className="panel"><div className="panel-heading"><span className="eyebrow">NATIVE RUST MCP / HOST INTEGRATION</span><h2>Connect Claude, Codex or another MCP host</h2><p>Create a revocable, per-account key for the local Rust MCP server. Your host controls browsing and model reasoning; source text remains untrusted evidence.</p></div>
+   {tab==='integrations'&&<section className="panel"><div className="panel-heading"><span className="eyebrow">NATIVE RUST MCP / HOST INTEGRATION</span><h2>Connect Claude, Codex or another MCP host</h2><p>Create a revocable, per-account key for the local Rust MCP server. Your host controls model reasoning and optional browsing; Reddit archive collection runs in the backend; source text remains untrusted evidence.</p></div>
     <label htmlFor="mcpKeyLabel">Key description</label><input id="mcpKeyLabel" value={keyLabel} onChange={e=>setKeyLabel(e.target.value)} placeholder="My desktop MCP client"/>
     <button className="primary" disabled={!user||busy||!keyLabel.trim()} onClick={()=>void act(async()=>{const result=await api<{api_key:string}>('/mcp/keys',{method:'POST',body:JSON.stringify({label:keyLabel})});setNewKey(result.api_key);},'API key created. Copy and store it securely now.')}>Generate MCP API key</button>
     {newKey&&<div className="subpanel"><span className="eyebrow">ONE-TIME SECRET — COPY NOW</span><p>Copy this key into your MCP host configuration. It will not be shown again.</p><div className="row"><input aria-label="New API key" type="text" value={newKey} readOnly/><button className="tiny" onClick={()=>void navigator.clipboard.writeText(newKey)}>Copy</button></div></div>}
     <div className="subpanel"><span className="eyebrow">ACTIVE API KEYS</span>{keys.map(k=><div className="list-item job" key={k.id}><b>{k.label}</b><small>{new Date(k.created_at).toLocaleDateString()}</small><button className="tiny" disabled={busy} onClick={()=>void act(async()=>{await api('/mcp/keys/'+k.id,{method:'DELETE'});setNewKey('');},'API key revoked')}>Revoke</button></div>)}</div>
     <div className="subpanel"><span className="eyebrow">RUN THE MCP BRIDGE</span><p>Install Rust and run this command from the repository root with your secret set in <code>PAIN_MCP_API_KEY</code>. Keep API credentials out of committed files.</p>
      <pre className="command">cargo run --manifest-path api/Cargo.toml -- --mcp</pre>
-     <p className="disclaimer">Requires a running web/API stack. The bridge exposes 57 original tool schemas. Execution is authenticated and all workflow data stays in your PostgreSQL workspace.</p>
+     <p className="disclaimer">Requires a running web/API stack. The bridge exposes 58 tool schemas, including browser-free Reddit archive collection. Execution is authenticated and all workflow data stays in your PostgreSQL workspace.</p>
     </div>
    </section>}
    {tab==='settings'&&<section className="panel">

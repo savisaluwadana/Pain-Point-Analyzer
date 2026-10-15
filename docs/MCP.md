@@ -1,11 +1,11 @@
 # Connect a research host to Open Source Discovery Lab
 
-The Rust binary implements **JSON-RPC 2.0 over stdio** and advertises the original **57 MCP schemas**. All server-side tool actions require a revocable API credential tied to a PostgreSQL user. For the current non-commercial, open-source-idea discovery workflow, a connected host may perform permitted web browsing, semantic reasoning and research summaries; the app performs state, evidence, reconciliation and workflow validation.
+The Rust binary implements **JSON-RPC 2.0 over stdio** and advertises the **58 MCP schemas** (57 existing tools plus `collect_reddit_archive`). All server-side tool actions require a revocable API credential tied to a PostgreSQL user. For the current non-commercial, open-source-idea discovery workflow, a connected host may perform permitted web browsing, semantic reasoning and research summaries; the app performs state, evidence, reconciliation and workflow validation.
 
 ## Setup
 
 1. Start the Docker stack with `docker compose -f compose.yaml --env-file .env up --build -d --wait`.
-2. Sign in through Reddit OAuth using an approved application. There is no hidden browser-cookie scraping shortcut.
+2. Sign in with the local workspace token (no Reddit credentials needed), or use approved Reddit OAuth for direct API access.
 3. Open **MCP Integrations** in the new Next.js dashboard, create a labeled key and copy the one-time secret. Keys are hashed in PostgreSQL and can be revoked without deleting research.
 4. Install a Rust toolchain on the machine running the MCP host, or copy a release-built Rust binary to that machine.
 5. Configure your host with a valid executable command and the host-local absolute path to the repository.
@@ -74,8 +74,12 @@ The present project focuses on local, non-commercial exploration of community ne
 ## Important limitations
 
 - The OAuth **user identity** and the **MCP API key** are different credentials. The former authorizes only approved Reddit API access; the latter authorizes the owner's database research tools. You cannot use a raw Reddit password or browser session.
-- MCP ingestion explicitly refuses Reddit records; use the approved Reddit API collection routes. Other host-provided sources must be collected lawfully and are labeled as untrusted evidence.
+- Generic MCP ingestion refuses Reddit records; use `collect_reddit_archive` for archived samples or the approved Reddit API collection routes for direct access. Other host-provided sources must be collected lawfully and are labeled as untrusted evidence.
 - No LLM vendor key is needed for host-based workflows. The host does its own analysis; Rust validates IDs and stores the results. The Rust server does not autonomously browse sites or call proprietary LLM endpoints.
 - Deep-scrape tools plan and record visits by the **host**, not bypass robots, anti-bot protections or paywalls.
 - Semantic cluster reports retain evidence IDs, not raw user-generated excerpts. Short Reddit evidence retention and rights checks still apply.
-- Live OAuth, historical database reconciliation and the exact 57-tool output parity must be proven before a production cutover.
+- Live OAuth, historical database reconciliation and the legacy-tool output parity must be proven before a production cutover.
+
+## Browser-free archive collection
+
+Use `collect_reddit_archive` to fetch and store bounded samples through Arctic Shift. No browser or Reddit cookie is involved. See [archive setup and examples](ARCTIC_SHIFT.md).
