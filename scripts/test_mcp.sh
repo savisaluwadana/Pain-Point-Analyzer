@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+trap 'echo "MCP integration failed at line $LINENO" >&2' ERR
 cd "$(dirname "$0")/.."
 api="http://127.0.0.1:3000/api"
 sql() { docker compose exec -T postgres psql -q -v ON_ERROR_STOP=1 -U pain -d pain_intelligence -Atc "$1"; }
@@ -58,7 +59,7 @@ call record_validation_result "{\"workspace_id\":\"$workspace\",\"experiment_id\
 call submit_build_spec "{\"workspace_id\":\"$workspace\",\"product_name\":\"Workflow Report\",\"one_liner\":\"Eliminate reporting drudgery\"}" | jq -e '.workspace.build_spec.product_name == "Workflow Report"' >/dev/null
 call submit_gtm_plan "{\"workspace_id\":\"$workspace\",\"offer\":\"Design partner pilot\"}" | jq -e '.workspace.gtm_plan.offer == "Design partner pilot"' >/dev/null
 call set_opportunity_stage "{\"workspace_id\":\"$workspace\",\"stage\":\"building\"}" | jq -e '.workspace.stage == "building"' >/dev/null
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | docker compose exec -T -e "PAIN_MCP_API_KEY=$token" -e PAIN_PLATFORM_API_URL=http://web:3000 api /usr/local/bin/pain-intelligence-api --mcp | jq -e '.result.tools | length == 57' >/dev/null
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | docker compose exec -T -e "PAIN_MCP_API_KEY=$token" -e PAIN_PLATFORM_API_URL=http://web:3000 api /usr/local/bin/pain-intelligence-api --mcp | jq -e '.result.tools | length == 58' >/dev/null
 # Browser session mutations require an exact same-origin Origin header.
 session='local_integration_cookie_do_not_use'
 session_hash="$(printf '%s' "$session" | sha256sum | cut -c1-64)"
@@ -70,7 +71,7 @@ test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/projects" \
   -H "Cookie: pil_session=$session" \
   -H 'Content-Type: application/json' --data '{"name":"missing origin"}')" = 403
 # Source adapter discovery requires no credentials; collection always requires a session.
-curl --fail-with-body -sS "$api/sources" | jq -e '.sources | length == 7' >/dev/null
+curl --fail-with-body -sS "$api/sources" | jq -e '.sources | length == 8' >/dev/null
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/sources/collect" -H 'Content-Type: application/json' \
   --data '{"source":"github","query":"feature request"}')" = 401
 # Local-only authentication works without Reddit OAuth credentials.
