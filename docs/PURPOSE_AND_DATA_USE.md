@@ -47,3 +47,7 @@ The collector currently uses selected subreddit top posts for the past month; it
 The research engine retains optional general-purpose validation, planning and market-comparison capabilities from an earlier iteration. **They are not the reason for the requested non-commercial Reddit access and must not be treated as permission for commercial use of the resulting Reddit data.**
 
 See [Architecture](ARCHITECTURE.md) and [MCP](MCP.md).
+
+## Third-party archive pilot
+
+The Arctic Shift connector separately supports bounded archive collection without Reddit OAuth. The OAuth behavior above applies to the direct Reddit connector. Archive availability does not grant rights to the underlying content; all data-use constraints remain applicable. See [archive sampling, provenance, retention and limitations](ARCTIC_SHIFT.md).

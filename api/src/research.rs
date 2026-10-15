@@ -144,7 +144,7 @@ pub async fn export_data(State(st):State<AppState>,headers:HeaderMap)->ApiResult
    "SELECT to_jsonb(t) FROM (SELECT id,name,description,created_at FROM projects WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")
   .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
  let evidence:Vec<Value>=sqlx::query_scalar(
-   "SELECT to_jsonb(t) FROM (SELECT id,project_id,source_kind,source_id,source_url,CASE WHEN source_kind IN ('reddit','reddit-comment') THEN NULL ELSE title END AS title,CASE WHEN source_kind IN ('reddit','reddit-comment') THEN NULL ELSE body END AS body,published_at,collected_at,metadata FROM evidence WHERE owner_id=$1 ORDER BY collected_at DESC LIMIT 5001) t")
+   "SELECT to_jsonb(t) FROM (SELECT id,project_id,source_kind,source_id,source_url,CASE WHEN source_kind IN ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') THEN NULL ELSE title END AS title,CASE WHEN source_kind IN ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') THEN NULL ELSE body END AS body,published_at,collected_at,metadata FROM evidence WHERE owner_id=$1 ORDER BY collected_at DESC LIMIT 5001) t")
   .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
  let runs:Vec<Value>=sqlx::query_scalar(
    "SELECT to_jsonb(t) FROM (SELECT id,project_id,topic,report,status,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")

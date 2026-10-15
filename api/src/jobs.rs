@@ -62,7 +62,7 @@ async fn work_once(st:&AppState)->ApiResult<()>{
 pub async fn cleanup(st:AppState){
  let days: i32=std::env::var("REDDIT_RETENTION_DAYS").ok().and_then(|s|s.parse().ok()).unwrap_or(7).clamp(1,30);
  loop {
-   if let Err(err)=sqlx::query("DELETE FROM evidence WHERE source_kind IN ('reddit','reddit-comment') AND collected_at < now() - ($1 * interval '1 day')").bind(days).execute(&st.db).await{
+   if let Err(err)=sqlx::query("DELETE FROM evidence WHERE source_kind IN ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') AND collected_at < now() - ($1 * interval '1 day')").bind(days).execute(&st.db).await{
      tracing::error!(error=%err,"retention cleanup failed");
    }
    let days:i32=std::env::var("SOURCE_RETENTION_DAYS").ok().and_then(|s|s.parse().ok()).unwrap_or(7).clamp(1,30);

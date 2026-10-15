@@ -36,8 +36,8 @@ pub(super) async fn ingest(st:&AppState,owner:Uuid,args:&Value)->ApiResult<Value
   if body.is_empty()||body.len()>20_000{return Err(bad("Each evidence item requires text of 1-20,000 bytes"));}
   let kind=match string(&item,"source_kind"){""=>"other",k=>k};
   // Reddit evidence must be collected via a consented, approved Data API connector.
-  if kind=="reddit"||kind=="reddit-comment"||kind=="legacy-reddit" {
-     return Err(bad("Collect Reddit evidence through the approved OAuth API connector, not host-import spoofing"));
+  if kind=="reddit"||kind=="reddit-comment"||kind=="legacy-reddit"||kind=="reddit-archive"||kind=="reddit-archive-comment" {
+     return Err(bad("Collect Reddit evidence through the dedicated OAuth or collect_reddit_archive connector, not host-import spoofing"));
   }
   if kind.len()>60 || !kind.bytes().all(|b|b.is_ascii_lowercase()||b==b'-'){return Err(bad("Invalid source_kind"));}
   let url=string(&item,"url");
@@ -46,7 +46,7 @@ pub(super) async fn ingest(st:&AppState,owner:Uuid,args:&Value)->ApiResult<Value
    if !matches!(parsed.scheme(),"http"|"https"){return Err(bad("URL must use http or https"));}
    let host=parsed.host_str().unwrap_or("").to_ascii_lowercase();
    if matches!(host.as_str(),"reddit.com"|"www.reddit.com"|"redd.it")||host.ends_with(".reddit.com") {
-     return Err(bad("Reddit source URLs must be collected through the approved OAuth connector"));
+     return Err(bad("Reddit source URLs must be collected through the dedicated OAuth or collect_reddit_archive connector"));
    }
   }
   let source=string(&item,"source_name").chars().take(150).collect::<String>();

@@ -5,6 +5,7 @@ mod oauth;
 mod local_auth;
 mod reddit;
 mod sources;
+mod archive;
 mod research;
 mod scoring;
 
