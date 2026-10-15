@@ -23,14 +23,14 @@ If separately approved, the standalone application would:
 4. Group related observations through deterministic theme scoring and optional research-host-assisted interpretation.
 5. Use the findings to consider open-source contributions, checking original sources and existing solutions.
 
-The collector currently uses selected subreddit top posts for the past month; it does not autonomously perform site-wide search. In the dashboard a scan requests 25 posts. The application is not an embedded Reddit or Devvit app. It requires external local PostgreSQL storage, an independent dashboard, and optional MCP integration for a user-controlled research host.
+The direct OAuth collector currently uses selected subreddit top posts for the past month; it does not autonomously perform site-wide search. In the dashboard a scan requests 25 posts. The application is not an embedded Reddit or Devvit app. It requires external local PostgreSQL storage, an independent dashboard, and optional MCP integration for a user-controlled research host.
 
 ## Conduct and data practices
 
 - Read-only access. No posting, voting, direct messaging, moderation actions or engagement automation.
 - No browser-session impersonation, unauthorized collection, internal Reddit GraphQL endpoint access, or bypass of controls.
 - Configured conservative request limits and provider backoff; Reddit's actual permissions, quotas and policies take precedence.
-- Default deletion of locally stored Reddit evidence after seven days and connected-source evidence after seven days (configurable 1–30), plus account deletion and disconnected-account removal.
+- Default deletion of locally stored Reddit evidence after seven days and connected-source evidence after seven days (configurable 1–30), plus account and individual evidence deletion. OAuth disconnect removes direct-connector data; independently collected archive evidence remains subject to retention or explicit deletion.
 - No sale or redistribution of Reddit discussions as a dataset; no training of AI models on Reddit content.
 - Source material is treated as untrusted input; individual Redditors are not profiled for outreach.
 - Publicly visible source code and community discussion **do not** imply authorization to collect or reuse Reddit content.

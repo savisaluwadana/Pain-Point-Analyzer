@@ -5,23 +5,25 @@
 ## What this alpha includes
 
 - Self-hosted Rust API, Next.js dashboard and PostgreSQL storage.
-- Read-only community source adapters: GitHub Issues, HN/Algolia comments, Stack Overflow questions, Bluesky posts, YouTube comments, allowlisted Discourse and Medium topic RSS.
+- Eight read-only community source adapters: Arctic Shift Reddit archives, GitHub Issues, HN/Algolia comments, Stack Overflow questions, Bluesky posts, YouTube comments, allowlisted Discourse and Medium topic RSS.
 - Optional localhost-only token login independent of Reddit credentials.
 - Manually saved research evidence, rule-based theme summaries, community project candidates and source links.
-- Optional Rust MCP bridge with existing 57 tool schemas.
+- Optional Rust MCP bridge with 58 tool schemas, including browser-free `collect_reddit_archive`.
+- Archive top/mid/new selection within a recent sample, shared pacing, explicit provenance and short Reddit evidence retention.
+- Direct Reddit API 401/403 denials stop background retries instead of repeatedly consuming attempts.
 - A fully synthetic, six-item demo executable with no external API account.
 - MIT licensing, contributor guidance, security policy and public alpha issue templates.
 
 ## Start here
 
-Read [README](../README.md), then follow [Five-minute demo](DEMO.md) with `bash scripts/try-demo.sh`. Use [Source connectors](SOURCES.md) if you want to try real provider data.
+Read [README](../README.md), then follow [Five-minute demo](DEMO.md) with `bash scripts/try-demo.sh`. For Reddit research without OAuth, follow the [Arctic Shift quick start](ARCTIC_SHIFT.md). Use [Source connectors](SOURCES.md) for other providers.
 
 ## Known limitations
 
-- **No live provider certification.** GitHub Actions uses a local database and fixture sessions; it does not guarantee public API permissions or the behavior of all seven external APIs.
+- **No live provider certification.** GitHub Actions uses a local database and fixture sessions; it does not guarantee public API permissions or the behavior of all eight source connectors. A small Arctic Shift live sample passed during implementation; this does not establish complete coverage or ongoing availability.
 - Research is **heuristic keyword analysis**, not proof of demand or semantic inference by the Rust service. Optional MCP-host reasoning is a separate workflow.
 - Source collection is a single page per click; there is no scheduled multi-provider ingestion.
-- Reddit connector requires official approval; local research and demo do not.
+- The direct Reddit API connector requires official approval. Archive collection, local research and the demo do not require Reddit OAuth. Archive data can lag, and its scores are not live subreddit rankings.
 - Local login is single-operator/localhost only. **Do not expose the local token login publicly.**
 - Third-party content, licenses, platform quotas and deletion responsibilities are separate from our MIT source-code license.
 - No independent penetration test, live cross-browser acceptance test or guaranteed uptime.
