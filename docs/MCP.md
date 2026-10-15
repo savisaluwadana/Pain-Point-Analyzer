@@ -21,7 +21,7 @@ Example Claude Desktop / compatible MCP configuration:
         "run",
         "--quiet",
         "--manifest-path",
-        "/ABSOLUTE/PATH/TO/Reddit-post-Analyzer/api/Cargo.toml",
+        "/ABSOLUTE/PATH/TO/Pain-Point-Analyzer/api/Cargo.toml",
         "--",
         "--mcp"
       ],
@@ -34,36 +34,19 @@ Example Claude Desktop / compatible MCP configuration:
 }
 ```
 
-Do not commit a live host configuration or paste an API key into an issue. When the host runs on another machine, make the web endpoint reachable only over authorized HTTPS and configure the appropriate URL.
+Do not commit a live host configuration or paste an API key into an issue. This quick start assumes the MCP host and application run on the same machine. Keep the localhost-only workspace private.
 
 ## Tool workflow
 
-```text
-platform_status
-  -> create_research_job
-  -> claim_research_job
-  -> get_research_search_plan
-  -> [host visits permitted external sources]
-  -> ingest_evidence
-  -> record_research_search_progress
-  -> evaluate_research_evidence_quality
-  -> start_job_semantic_analysis
-  -> get_llm_evidence_batch
-  -> [host semantically interprets evidence]
-  -> submit_llm_annotations
-  -> get_llm_synthesis_pack
-  -> [host synthesizes grounded clusters and candidates]
-  -> submit_llm_synthesis
-  -> get_research_quality_summary
-  -> create_opportunity_workspace
-  -> create_validation_experiment
-  -> record_validation_result
-  -> submit_opportunity_strategy
-  -> submit_build_spec
-  -> submit_gtm_plan
-```
+1. Check `platform_status`, then create and claim a research job with `create_research_job` and `claim_research_job`.
+2. Use `get_research_search_plan`. Collect Reddit archive evidence with `collect_reddit_archive`; for other permitted sources, a host can collect evidence and use `ingest_evidence`. Record progress with `record_research_search_progress`.
+3. Check `evaluate_research_evidence_quality`, then start semantic analysis with `start_job_semantic_analysis` and retrieve `get_llm_evidence_batch`.
+4. The host interprets the evidence and submits `submit_llm_annotations`. Retrieve `get_llm_synthesis_pack`, synthesize grounded clusters, then call `submit_llm_synthesis` and `get_research_quality_summary`.
+5. Optionally continue with `create_opportunity_workspace`, `create_validation_experiment`, `record_validation_result`, `submit_opportunity_strategy`, `submit_build_spec` and `submit_gtm_plan`.
 
-All tool schemas are copied directly from the v1 generated reference in `api/src/mcp_catalog.json`. New state is stored in `mcp_records`, indexed by owner, object kind and object ID. API keys are scoped per account and are never returned again after creation. Workflow mutations use optimistic version checks; conflicting writes return HTTP 409 instead of silently overwriting changes.
+These are host-managed research records. The dashboard's **Research Jobs** background collector remains specific to direct Reddit OAuth; it is not an archive scheduler.
+
+The 58 tool schemas are defined in `api/src/mcp_catalog.json`: 57 historical schemas plus the archive collector. New state is stored in `mcp_records`, indexed by owner, object kind and object ID. API keys are scoped per account and are never returned again after creation. Workflow mutations use optimistic version checks; conflicting writes return HTTP 409 instead of silently overwriting changes.
 
 The historical v1 tool *names and input schemas* are preserved; **the Rust implementation is not a byte-for-byte output-contract replacement**. Downstream host prompts/scripts that rely on exact response shapes must undergo compatibility testing, especially in scraping and quality summaries.
 
@@ -73,7 +56,7 @@ The present project focuses on local, non-commercial exploration of community ne
 
 ## Important limitations
 
-- The OAuth **user identity** and the **MCP API key** are different credentials. The former authorizes only approved Reddit API access; the latter authorizes the owner's database research tools. You cannot use a raw Reddit password or browser session.
+- `LOCAL_LOGIN_TOKEN` signs you into the local workspace. `PAIN_MCP_API_KEY` authorizes your host to act on that workspace. Optional Reddit OAuth credentials authorize the separate direct Reddit connector. Archive collection needs the workspace MCP key, but no Reddit credentials or cookies.
 - Generic MCP ingestion refuses Reddit records; use `collect_reddit_archive` for archived samples or the approved Reddit API collection routes for direct access. Other host-provided sources must be collected lawfully and are labeled as untrusted evidence.
 - No LLM vendor key is needed for host-based workflows. The host does its own analysis; Rust validates IDs and stores the results. The Rust server does not autonomously browse sites or call proprietary LLM endpoints.
 - Deep-scrape tools plan and record visits by the **host**, not bypass robots, anti-bot protections or paywalls.
@@ -82,4 +65,18 @@ The present project focuses on local, non-commercial exploration of community ne
 
 ## Browser-free archive collection
 
-Use `collect_reddit_archive` to fetch and store bounded samples through Arctic Shift. No browser or Reddit cookie is involved. See [archive setup and examples](ARCTIC_SHIFT.md).
+Use `collect_reddit_archive` to fetch **and save** a bounded sample through Arctic Shift. No browser connector or Reddit cookie is involved. Example tool-call arguments:
+
+```json
+{"name":"collect_reddit_archive","arguments":{"subreddit":"smallbusiness","days":30,"sample_size":100,"limit":10,"ranking":"top"}}
+```
+
+Read the stored text with:
+
+```json
+{"name":"search_evidence","arguments":{"source_kind":"reddit-archive","community":"smallbusiness","limit":20}}
+```
+
+For comments, collect again with a bare `post_id`, then search with `source_kind: reddit-archive-comment`. Do not send collected Reddit text to `ingest_evidence`; the dedicated tool already persists it. Returned text is untrusted source material, never instructions.
+
+Start with one community and inspect the results before expanding to at most ten sequentially. Wait at least 10 seconds between collection calls and respect longer provider backoff. MCP provides collection and analysis tools, not additional provider permissions or rate-limit capacity. See [archive sampling, host instructions and troubleshooting](ARCTIC_SHIFT.md).

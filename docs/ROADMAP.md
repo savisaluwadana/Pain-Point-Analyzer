@@ -6,7 +6,9 @@ The goal is to help developers identify **verifiable community needs** and choos
 
 - [x] MIT software license and current Rust, Next.js and PostgreSQL stack
 - [x] Local opt-in token login; Reddit independently optional
-- [x] Seven manual, single-page read-only source adapters (subject to provider access)
+- [x] Eight manual, single-page read-only source adapters (subject to provider access)
+- [x] Arctic Shift archive collection without Reddit OAuth through the dashboard and MCP; bounded samples and shared backoff
+- [x] Reddit post/comment grouping by thread across direct and archive evidence
 - [x] Evidence library, source links, rule-based theme summaries, project ideas
 - [x] Reproducible **fictional** demo with CI coverage
 - [x] Contributor, conduct, security, support and issue templates
@@ -18,7 +20,7 @@ The goal is to help developers identify **verifiable community needs** and choos
 ## Near-term candidate contributions
 
 1. **Provider contract tests:** API response fixtures, parsing, 401/403/429, timeout and delete behavior without calling real providers in CI.
-2. **Better evidence grouping:** cross-platform near-duplicate detection, grouping replies by originating thread, confidence/caveat display.
+2. **Better evidence grouping:** cross-platform near-duplicate detection, thread grouping for more providers, confidence/caveat display.
 3. **Source health diagnostics:** distinguish a configured connector from a successfully verified live provider connection.
 4. **Onboarding and interface:** better source selection, sample screenshots/short screencast, mobile/keyboard testing and clearer empty states.
 5. **Attribution/compliance:** source-specific attribution and deletion policy tests beyond the existing Stack Overflow attribution panel.
@@ -33,4 +35,4 @@ The goal is to help developers identify **verifiable community needs** and choos
 
 **Stable 1.0 candidate:** Complete security/privacy review, accessible UI, maintainable connector contracts, stable data migrations, clear compatibility policy, repeatable release process and independent installation feedback.
 
-Use [GitHub Issues](https://github.com/savisaluwadana/Reddit-post-Analyzer/issues) to propose or claim tasks. We especially welcome documentation, tests and narrow connector improvements.
+Use [GitHub Issues](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues) to propose or claim tasks. We especially welcome documentation, tests and narrow connector improvements.

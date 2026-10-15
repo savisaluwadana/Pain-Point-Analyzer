@@ -5,7 +5,7 @@ Thanks for helping build a community-first, open-source research tool. This proj
 ## Where to begin
 
 1. Read the [README](README.md), [five-minute demo](docs/DEMO.md), and [roadmap](docs/ROADMAP.md).
-2. Check [open issues](https://github.com/savisaluwadana/Reddit-post-Analyzer/issues). If you have an idea or found a bug, open an issue using a template before a large change.
+2. Check [open issues](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues). If you have an idea or found a bug, open an issue using a template before a large change.
 3. For your first PR, prefer documentation improvements, better error handling, connector tests, or accessibility fixes.
 4. In your PR, explain the **user-visible problem**, the approach taken, tests performed, and any data permissions affected.
 
