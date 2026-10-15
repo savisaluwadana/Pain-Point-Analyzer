@@ -43,7 +43,7 @@ impl Request {
     }
     fn url(&self) -> ApiResult<url::Url> {
         let mut url = url::Url::parse(&format!("{BASE}/{}/search", if self.post_id.is_some() { "comments" } else { "posts" })).map_err(internal)?;
-        let after = (Utc::now() - Duration::days(self.days.unwrap_or(30))).to_rfc3339();
+        let after = (Utc::now() - Duration::days(self.days.unwrap_or(30))).timestamp().to_string();
         url.query_pairs_mut().append_pair("subreddit", &self.subreddit)
             .append_pair("after", &after).append_pair("sort", "desc")
             .append_pair("limit", &self.sample_size.unwrap_or(100).to_string());
@@ -104,10 +104,15 @@ async fn reserve(st: &AppState) -> ApiResult<()> {
     Ok(())
 }
 fn retry_seconds(headers: &reqwest::header::HeaderMap) -> i64 {
-    headers.get("retry-after").and_then(|v|v.to_str().ok()).and_then(|s|s.parse::<i64>().ok()
-        .or_else(||DateTime::parse_from_rfc2822(s).ok().map(|d|(d.with_timezone(&Utc)-Utc::now()).num_seconds())))
-        .unwrap_or(60).max(10)
+    let retry = headers.get("retry-after").and_then(|v|v.to_str().ok()).and_then(|s|s.parse::<i64>().ok()
+        .or_else(||DateTime::parse_from_rfc2822(s).ok().map(|d|(d.with_timezone(&Utc)-Utc::now()).num_seconds())));
+    let reset = headers.get("x-ratelimit-reset").and_then(|v|v.to_str().ok()).and_then(|v|v.parse::<f64>().ok())
+        .filter(|v|v.is_finite()).map(|v|v.ceil() as i64);
+    let reset_at = headers.get("x-ratelimit-reset-at").and_then(|v|v.to_str().ok()).and_then(|v|v.parse::<i64>().ok())
+        .map(|v|v.saturating_sub(Utc::now().timestamp()));
+    [retry,reset,reset_at].into_iter().flatten().max().unwrap_or(60).max(10)
 }
+
 async fn fetch(st: &AppState, req: &Request) -> ApiResult<Value> {
     reserve(st).await?;
     let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(20))
@@ -188,13 +193,15 @@ mod tests {
         r=req(); r.limit=Some(101); assert!(r.validate().is_err());
         r=req(); r.days=Some(-1); assert!(r.validate().is_err());
         let mut headers=reqwest::header::HeaderMap::new(); headers.insert("retry-after","7200".parse().unwrap()); assert_eq!(retry_seconds(&headers),7200);
+        headers.insert("x-ratelimit-reset","8000".parse().unwrap()); assert_eq!(retry_seconds(&headers),8000);
+        let r=req(); let u=r.url().unwrap(); let after=u.query_pairs().find(|(k,_)|k=="after").unwrap().1; assert!(after.parse::<i64>().is_ok());
     }
     #[tokio::test]
     #[ignore = "Opt-in live archive smoke test; no CI dependency on upstream"]
     async fn live_archive_sample() {
         let mut r=req(); r.subreddit="smallbusiness".into();
-        let response=reqwest::Client::new().get(r.url().unwrap()).send().await.unwrap();
-        assert!(response.status().is_success());
+        let response=reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).redirect(reqwest::redirect::Policy::none()).build().unwrap().get(r.url().unwrap()).header("User-Agent", "OpenSourceDiscoveryLab/0.1 (bounded archive research)").header("Accept", "application/json").send().await.unwrap();
+        assert!(response.status().is_success(), "archive HTTP {}: {}", response.status(), response.text().await.unwrap_or_default());
         let payload:Value=response.json().await.unwrap();
         let (eligible,items)=select(&payload,&r).unwrap();
         eprintln!("Live Arctic Shift: fetched={}, eligible={}, selected={}",payload["data"].as_array().unwrap().len(),eligible,items.len());
