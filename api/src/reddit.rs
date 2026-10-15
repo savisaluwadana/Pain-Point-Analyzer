@@ -80,6 +80,21 @@ async fn backoff_after_provider_response(st:&AppState,response:&reqwest::Respons
  Ok(())
 }
 
+// Permanent access denials are not transient upstream outages. Preserve a distinct
+// status so the background worker can stop instead of repeatedly retrying a 401/403.
+fn reddit_response_error(status:reqwest::StatusCode)->Option<ApiError>{
+ match status{
+  reqwest::StatusCode::TOO_MANY_REQUESTS=>Some(ApiError(StatusCode::TOO_MANY_REQUESTS,
+   "Reddit API rate limit reached. Retry after the provider's allowed window.".into())),
+  reqwest::StatusCode::UNAUTHORIZED=>Some(ApiError(StatusCode::FAILED_DEPENDENCY,
+   "Reddit rejected the access token; reconnect the account before collecting again.".into())),
+  reqwest::StatusCode::FORBIDDEN=>Some(ApiError(StatusCode::FAILED_DEPENDENCY,
+   "Reddit denied API access; verify the application's approval and permissions.".into())),
+  _ if !status.is_success()=>Some(ApiError(StatusCode::BAD_GATEWAY,format!("Reddit returned HTTP {status}"))),
+  _=>None
+ }
+}
+
 async fn reddit_get(st:&AppState,user:Uuid,path:&str,query:Vec<(&str,String)>)->ApiResult<Value>{
  let token=oauth::access_token(st,user).await?;
  reserve_provider_request(st,user).await?;
@@ -87,13 +102,7 @@ async fn reddit_get(st:&AppState,user:Uuid,path:&str,query:Vec<(&str,String)>)->
  let response=st.http.get(&url).bearer_auth(token).header("User-Agent",&st.cfg.user_agent).query(&query).send().await.map_err(internal)?;
  let status=response.status();
  backoff_after_provider_response(st,&response).await?;
- if status==reqwest::StatusCode::TOO_MANY_REQUESTS {
-   return Err(ApiError(StatusCode::TOO_MANY_REQUESTS,"Reddit API rate limit reached. Retry after the provider's allowed window.".into()));
- }
- if status==reqwest::StatusCode::UNAUTHORIZED||status==reqwest::StatusCode::FORBIDDEN {
-   return Err(ApiError(StatusCode::BAD_GATEWAY,"Reddit denied access; reconnect or check app permissions".into()));
- }
- if !status.is_success(){return Err(ApiError(StatusCode::BAD_GATEWAY,format!("Reddit returned HTTP {status}")));}
+ if let Some(error)=reddit_response_error(status){return Err(error);}
  response.json().await.map_err(internal)
 }
 pub(crate) async fn fetch_posts(st:&AppState,user:Uuid,sub:&str,limit:i32)->ApiResult<Vec<RedditPost>>{
@@ -124,6 +133,13 @@ pub async fn comments(State(st):State<AppState>,headers:HeaderMap,Query(q):Query
 mod tests {
  use super::*;
  #[test] fn bounded_names(){assert!(subreddit_ok("rust"));assert!(!subreddit_ok("rust/path"));assert!(!id_ok("../secret"));assert!(is_reddit_host("www.reddit.com"));assert!(!is_reddit_host("fake-reddit.com"));assert_eq!(configured_limit("UNSET_TEST_SETTING",30,120),30);}
+ #[test] fn provider_errors_distinguish_permanent_denials_and_rate_limits(){
+  assert_eq!(reddit_response_error(reqwest::StatusCode::UNAUTHORIZED).unwrap().0,StatusCode::FAILED_DEPENDENCY);
+  assert_eq!(reddit_response_error(reqwest::StatusCode::FORBIDDEN).unwrap().0,StatusCode::FAILED_DEPENDENCY);
+  assert_eq!(reddit_response_error(reqwest::StatusCode::TOO_MANY_REQUESTS).unwrap().0,StatusCode::TOO_MANY_REQUESTS);
+  assert_eq!(reddit_response_error(reqwest::StatusCode::SERVICE_UNAVAILABLE).unwrap().0,StatusCode::BAD_GATEWAY);
+  assert!(reddit_response_error(reqwest::StatusCode::OK).is_none());
+ }
 }
 
 #[derive(Serialize,Deserialize,Clone)]

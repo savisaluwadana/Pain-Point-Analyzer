@@ -1,5 +1,5 @@
 use crate::{oauth,reddit,research::{assert_project,persist_posts},AppState,ApiResult,bad,internal};
-use axum::{extract::State,http::HeaderMap,Json};
+use axum::{extract::State,http::{HeaderMap,StatusCode},Json};
 use chrono::{DateTime,Utc};
 use serde::{Deserialize,Serialize};
 use serde_json::{json,Value};
@@ -33,6 +33,12 @@ pub async fn worker(st:AppState){
   sleep(Duration::from_secs(5)).await;
  }
 }
+// Retry temporary network/provider failures, but not approval, credential, or
+// input errors. A refused 403 is not a signal to switch collection endpoints.
+fn retryable_reddit_error(error:&crate::ApiError)->bool{
+ matches!(error.0,StatusCode::TOO_MANY_REQUESTS|StatusCode::BAD_GATEWAY|
+  StatusCode::INTERNAL_SERVER_ERROR|StatusCode::GATEWAY_TIMEOUT)
+}
 async fn work_once(st:&AppState)->ApiResult<()>{
  let item:Option<(Uuid,Uuid,String,Option<Uuid>,Uuid)>=sqlx::query_as(
   "UPDATE research_jobs SET status='running',lease_token=gen_random_uuid(),lease_expires_at=now()+interval '2 minutes',attempts=attempts+1 WHERE id=(SELECT id FROM research_jobs WHERE (status='queued' AND next_attempt_at<=now()) OR (status='running' AND lease_expires_at<now() AND attempts<3) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id,owner_id,subreddit,project_id,lease_token")
@@ -45,8 +51,9 @@ async fn work_once(st:&AppState)->ApiResult<()>{
  match outcome {
    Ok(_)=>{sqlx::query("UPDATE research_jobs SET status='complete',lease_token=NULL,lease_expires_at=NULL,finished_at=now() WHERE id=$1 AND lease_token=$2").bind(id).bind(lease).execute(&st.db).await.map_err(internal)?;},
    Err(error)=>{
-     sqlx::query("UPDATE research_jobs SET status=CASE WHEN attempts>=3 THEN 'failed' ELSE 'queued' END,lease_token=NULL,lease_expires_at=NULL,last_error=$3,next_attempt_at=now() + (CASE WHEN $4 THEN interval '15 minutes' ELSE (attempts * interval '1 minute') END) WHERE id=$1 AND lease_token=$2")
-       .bind(id).bind(lease).bind(error.1).bind(error.0==axum::http::StatusCode::TOO_MANY_REQUESTS).execute(&st.db).await.map_err(internal)?;
+     let retryable=retryable_reddit_error(&error);
+     sqlx::query("UPDATE research_jobs SET status=CASE WHEN attempts>=3 OR NOT $5 THEN 'failed' ELSE 'queued' END,lease_token=NULL,lease_expires_at=NULL,last_error=$3,next_attempt_at=now() + (CASE WHEN $4 THEN interval '15 minutes' ELSE (attempts * interval '1 minute') END),finished_at=CASE WHEN attempts>=3 OR NOT $5 THEN now() ELSE NULL END WHERE id=$1 AND lease_token=$2")
+       .bind(id).bind(lease).bind(error.1).bind(error.0==StatusCode::TOO_MANY_REQUESTS).bind(retryable).execute(&st.db).await.map_err(internal)?;
    }
  }
  Ok(())
@@ -65,5 +72,24 @@ pub async fn cleanup(st:AppState){
    // A worker killed during its final lease must not leave the job stuck forever.
    let _=sqlx::query("UPDATE research_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL,finished_at=now(),last_error=COALESCE(last_error,'Worker lease expired after final retry') WHERE status='running' AND lease_expires_at<now() AND attempts>=3").execute(&st.db).await;
    sleep(Duration::from_secs(3600)).await;
+ }
+}
+
+#[cfg(test)]
+mod tests{
+ use super::*;
+ #[test]
+ fn permanent_access_denials_do_not_retry(){
+  for status in [StatusCode::FAILED_DEPENDENCY,StatusCode::UNAUTHORIZED,
+                 StatusCode::FORBIDDEN,StatusCode::SERVICE_UNAVAILABLE,StatusCode::BAD_REQUEST]{
+   assert!(!retryable_reddit_error(&crate::ApiError(status,"blocked".into())));
+  }
+ }
+ #[test]
+ fn temporary_provider_failures_can_retry(){
+  for status in [StatusCode::TOO_MANY_REQUESTS,StatusCode::BAD_GATEWAY,
+                 StatusCode::INTERNAL_SERVER_ERROR,StatusCode::GATEWAY_TIMEOUT]{
+   assert!(retryable_reddit_error(&crate::ApiError(status,"temporary".into())));
+  }
  }
 }
