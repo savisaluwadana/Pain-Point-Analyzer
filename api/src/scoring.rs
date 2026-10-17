@@ -51,7 +51,7 @@ pub fn analyze(evidence:&[EvidenceText])->Report{
 // Keyword matching is a conservative relevance gate, not semantic classification.
 pub fn relevant_to_topic(evidence:&[EvidenceText],topic:&str)->Vec<EvidenceText>{
  let query=topic.to_ascii_lowercase();
- if query.contains("recurring community needs"){return evidence.to_vec();}
+ if query.contains("recurring community needs") || query.contains("open-source projects could help communities"){return evidence.to_vec();}
  const STOP:&[&str]=&["a","an","the","and","or","in","of","on","for","to","from",
   "what","which","who","why","how","are","is","do","does","can","could","would",
   "find","discover","identify","research","issues","problem","problems","pain",
@@ -83,6 +83,7 @@ mod tests {
   assert_eq!(relevant_to_topic(&items,"invoicing problems").len(),1);
   assert_eq!(relevant_to_topic(&items,"kubernetes problems").len(),1);
   assert!(relevant_to_topic(&items,"medical scheduling").is_empty());
+  assert_eq!(relevant_to_topic(&items,"Synthetic demo: ways open-source projects could help communities").len(),2);
  }
  #[test] fn repeated_thread_replies_do_not_inflate_severity(){
   let items=(0..20).map(|i|EvidenceText{id:Uuid::new_v4(),source_id:format!("abc:reply{i}"),
