@@ -31,6 +31,9 @@ jobs:
           cargo check --all-targets
           cargo test
           cargo test archive_database_contract -- --ignored
+      - name: Capture generated Cargo lockfile for version pinning
+        run: |
+          base64 -w0 api/Cargo.lock | fold -w 1000 | sed 's/^/CARGO_CHUNK:/'
   next:
     runs-on: ubuntu-latest
     steps:
@@ -44,6 +47,9 @@ jobs:
           npm install --no-audit --no-fund
           npm run typecheck
           npm run build
+      - name: Capture generated npm lockfile for version pinning
+        run: |
+          base64 -w0 web/package-lock.json | fold -w 1000 | sed 's/^/WEB_CHUNK:/'
   compose:
     runs-on: ubuntu-latest
     steps:
