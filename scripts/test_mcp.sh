@@ -34,12 +34,22 @@ call record_research_search_progress "{\"job_id\":\"$job\",\"queries\":[{\"query
 call evaluate_research_job_coverage "{\"job_id\":\"$job\"}" | jq -e '.evidence_total == 0 and .ready_for_synthesis == false' >/dev/null
 call ingest_evidence "{\"batch_id\":\"$job\",\"items\":[{\"source_kind\":\"forum\",\"external_id\":\"ci-linked-job\",\"url\":\"https://example.com/job\",\"text\":\"Repeated manual reporting takes hours\"}]}" | jq -e '.ingested == 1' >/dev/null
 call evaluate_research_job_coverage "{\"job_id\":\"$job\"}" | jq -e '.evidence_total == 1 and .ready_for_synthesis == false' >/dev/null
+# Re-upserting existing evidence into a different batch must NOT remove the old batch link.
+other_batch="$(call create_research_job '{"topic":"Secondary research batch"}' | jq -r '.job.job_id')"
+call ingest_evidence "{\"batch_id\":\"$other_batch\",\"items\":[{\"source_kind\":\"forum\",\"external_id\":\"ci-linked-job\",\"url\":\"https://example.com/job\",\"text\":\"Repeated manual reporting takes hours\"}]}" | jq -e '.ingested == 1' >/dev/null
+call evaluate_research_job_coverage "{\"job_id\":\"$job\"}" | jq -e '.evidence_total == 1' >/dev/null
+call evaluate_research_job_coverage "{\"job_id\":\"$other_batch\"}" | jq -e '.evidence_total == 1' >/dev/null
+# New research job is intentionally queued after the original: claim oldest first.
 claim="$(call claim_research_job '{}')"
 printf '%s' "$claim" | jq -e '.job.status == "claimed" and (.job.claim_token|length) > 10' >/dev/null
 claim_token="$(printf '%s' "$claim" | jq -r '.job.claim_token')"
+call get_research_job "{\"job_id\":\"$job\"}" | jq -e '.job.claim_token == null' >/dev/null
+call list_research_jobs '{}' | jq -e 'all(.jobs[]; .claim_token == null)' >/dev/null
+curl --fail-with-body -sS "$api/mcp/research-jobs" -H "Cookie: pil_session=not-valid" >/dev/null 2>&1 || true
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/mcp/execute" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data "{\"name\":\"start_job_semantic_analysis\",\"arguments\":{\"job_id\":\"$job\",\"claim_token\":\"wrong\"}}")" = 400
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/mcp/execute" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data "{\"name\":\"heartbeat_research_job\",\"arguments\":{\"job_id\":\"$job\",\"claim_token\":\"wrong\"}}")" = 400
 call heartbeat_research_job "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\",\"status\":\"collecting\"}" | jq -e '.job.status == "collecting"' >/dev/null
-run="$(call start_job_semantic_analysis "{\"job_id\":\"$job\"}" | jq -r '.run_id')"
+run="$(call start_job_semantic_analysis "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\"}" | jq -r '.run_id')"
 evidence_id="$(call get_llm_evidence_batch "{\"run_id\":\"$run\"}" | jq -r '.evidence[0].id')"
 test -n "$evidence_id"
 call submit_llm_annotations "{\"run_id\":\"$run\",\"annotations\":[{\"evidence_id\":\"$evidence_id\",\"canonical_pain\":\"Manual reporting takes hours\",\"semantic_cluster_key\":\"manual-reports\",\"semantic_cluster_label\":\"Manual reporting\"}]}" | jq -e '.annotated == 1' >/dev/null
@@ -53,10 +63,10 @@ call claim_research_job '{"harness":"host-one"}' | jq -e --arg id "$orphan_job" 
 call claim_research_job '{"harness":"host-two"}' | jq -e '.job == null' >/dev/null
 sql "UPDATE mcp_records SET payload=jsonb_set(payload,'{lease_until}',to_jsonb((now()-interval '1 minute')::text)) WHERE owner_id='$owner' AND kind='research-job' AND id='$orphan_job'" >/dev/null
 call claim_research_job '{"harness":"host-two"}' | jq -e --arg id "$orphan_job" '.job.job_id == $id and .job.claimed_by == "host-two"' >/dev/null
-call start_scrape_session "{\"job_id\":\"$job\"}" | jq -e '.session.status == "running"' >/dev/null
-call add_scrape_candidates "{\"job_id\":\"$job\",\"candidates\":[{\"url\":\"https://example.com/review-one\"}]}" | jq -e '.session.candidates | length == 1' >/dev/null
-call get_next_scrape_batch "{\"job_id\":\"$job\",\"limit\":1}" | jq -e '.batch | length == 1' >/dev/null
-call record_scrape_page_result "{\"job_id\":\"$job\",\"url\":\"https://example.com/review-one\",\"evidence_added\":1}" | jq -e '.session.pages | length == 1' >/dev/null
+call start_scrape_session "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\"}" | jq -e '.session.status == "running"' >/dev/null
+call add_scrape_candidates "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\",\"candidates\":[{\"url\":\"https://example.com/review-one\"}]}" | jq -e '.session.candidates | length == 1' >/dev/null
+call get_next_scrape_batch "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\",\"limit\":1}" | jq -e '.batch | length == 1' >/dev/null
+call record_scrape_page_result "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\",\"url\":\"https://example.com/review-one\",\"evidence_added\":1}" | jq -e '.session.pages | length == 1' >/dev/null
 call get_scrape_session_summary "{\"job_id\":\"$job\"}" | jq -e '.pages | length == 1' >/dev/null
 call get_research_quality_summary "{\"run_id\":\"$run\"}" | jq -e '.clusters == 1' >/dev/null
 call get_market_sizing_pack "{\"run_id\":\"$run\"}" | jq -e '.opportunities | length == 1' >/dev/null
@@ -104,7 +114,8 @@ project_id="$(curl --fail-with-body -sS "$api/projects" -H "Cookie: pil_session=
 # Upsert of manually collected evidence must update its project assignment and source URL.
 manual_id="$(curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data "{\"source_kind\":\"manual\",\"source_id\":\"ci-manual-upsert\",\"source_url\":\"https://example.com/old-source\",\"title\":\"Initial link\",\"body\":\"Accessibility issue\",\"project_id\":\"$project_id\"}" | jq -r '.id')"
 curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-manual-upsert","source_url":"https://example.com/current-source","title":"Updated link","body":"Accessibility issue","project_id":null}' | jq -e --arg id "$manual_id" '.id == $id' >/dev/null
-test "$(sql "SELECT (project_id IS NULL)::text||':'||source_url FROM evidence WHERE id='$manual_id'")" = 'true:https://example.com/current-source'
+test "$(sql "SELECT (project_id='$project_id')::text||':'||source_url FROM evidence WHERE id='$manual_id'")" = 'true:https://example.com/current-source'
+test "$(sql "SELECT count(*) FROM evidence_projects WHERE owner_id='$owner' AND evidence_id='$manual_id' AND project_id='$project_id'")" = 1
 curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 curl --fail-with-body -sS "$api/privacy/export" -H "Cookie: pil_session=$session" | \
