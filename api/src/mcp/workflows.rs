@@ -18,6 +18,20 @@ fn append(v:&mut Value,key:&str,items:Vec<Value>,limit:usize){
  array.extend(items);
  if array.len()>limit {array.drain(..array.len()-limit);}
 }
+fn verify_claim(job:&Value,args:&Value)->ApiResult<()>{
+ let active=["claimed","collecting","gap-research","semantic-analysis","opportunity-validation"];
+ if !active.iter().any(|s|job["status"]==*s){return Err(bad("Job is not actively claimed"));}
+ if args["claim_token"].as_str().is_none_or(str::is_empty) || job["claim_token"]!=args["claim_token"]{
+  return Err(bad("Valid job claim_token required"));
+ }
+ if !job["lease_until"].as_str().and_then(|s|chrono::DateTime::parse_from_rfc3339(s).ok())
+  .is_some_and(|t|t>chrono::Utc::now()){return Err(bad("Research job lease expired"));}
+ Ok(())
+}
+async fn verify_job(st:&AppState,user:Uuid,args:&Value)->ApiResult<()>{
+ let record=job(st,user,args).await?;
+ verify_claim(&record.value,args)
+}
 async fn job(st:&AppState,user:Uuid,args:&Value)->ApiResult<Record> {
  state::read(st,user,"research-job",require(args,"job_id")?).await
 }
@@ -49,8 +63,8 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
       "deep_scrapes":[],"validations":[],"created_at":chrono::Utc::now().to_rfc3339()});
     state::put(st,user,"research-job",&key,&value).await?; Ok(json!({"job":value}))
   },
-  "list_research_jobs"=>Ok(json!({"jobs":state::list(st,user,"research-job",a["limit"].as_i64().unwrap_or(40)).await?})),
-  "get_research_job"=>Ok(json!({"job":job(st,user,a).await?.value})),
+  "list_research_jobs"=>Ok(json!({"jobs":state::list(st,user,"research-job",a["limit"].as_i64().unwrap_or(40)).await?.iter().map(state::public_job).collect::<Vec<_>>()})),
+  "get_research_job"=>Ok(json!({"job":state::public_job(&job(st,user,a).await?.value)})),
   "claim_research_job"=>claim(st,user,a).await,
   "heartbeat_research_job"=>{
     let key=require(a,"job_id")?;
@@ -109,6 +123,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
   "record_research_search_progress"=>{
     let key=require(a,"job_id")?;
     let v=edit(st,user,"research-job",key,|v|{
+      if v["status"]!="queued"{verify_claim(v,a)?;}
       if !v["search_memory"].is_object(){v["search_memory"]=json!({});}
       for (field,max) in [("queries",150),("visited_urls",500),("discovered_entities",250),("failed_sources",200)]{
         let batch=limited_array(a,field,max)?;
@@ -130,6 +145,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
       "limits":{"max_depth":4,"max_pages":8,"max_replies":50}}))
   },
   "record_deep_scrape_result"=>{
+    verify_job(st,user,a).await?;
     let key=require(a,"job_id")?;
     let v=edit(st,user,"research-job",key,|v|{
       append(v,"deep_scrapes",vec![a.clone()],100);
@@ -151,6 +167,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
   },
   "get_source_scrape_contract"=>Ok(json!({"source_kind":string(a,"source_kind"),"url":string(a,"url"),"robots":"respect","login_bypass":false,"paywall_bypass":false,"rate_limits":"respect","max_depth":4,"max_pages":8,"max_candidates":40,"reddit_archive_tool":"collect_reddit_archive"})),
   "start_scrape_session" | "reopen_scrape_session"=>{
+    verify_job(st,user,a).await?;
     let key=require(a,"job_id")?;
     state::read(st,user,"research-job",key).await?;
     let v=json!({"job_id":key,"status":"running","policy":a["policy"],"candidates":[],"pages":[],"started_at":chrono::Utc::now().to_rfc3339()});
@@ -162,6 +179,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
     Ok(json!({"session":v}))
   },
   "add_scrape_candidates"=>{
+    verify_job(st,user,a).await?;
     let key=require(a,"job_id")?;
     let candidates=limited_array(a,"candidates",100)?;
     let v=edit(st,user,"scrape-session",key,|v|{
@@ -176,6 +194,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
     Ok(json!({"session":v}))
   },
   "get_next_scrape_batch"=>{
+    verify_job(st,user,a).await?;
     let key=require(a,"job_id")?;
     let mut batch=Vec::<Value>::new();
     edit(st,user,"scrape-session",key,|v|{
@@ -194,6 +213,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
     Ok(json!({"job_id":key,"batch":batch}))
   },
   "record_scrape_page_result"=>{
+    verify_job(st,user,a).await?;
     let key=require(a,"job_id")?;
     let url=require(a,"url")?;
     let v=edit(st,user,"scrape-session",key,|v|{
@@ -215,11 +235,12 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
   "start_job_semantic_analysis"=>{
     let key=require(a,"job_id")?;
     let j=job(st,user,a).await?.value;
-    if !["claimed","collecting","queued","semantic-analysis"].contains(&j["status"].as_str().unwrap_or("")){return Err(bad("Job is not active"));}
+    verify_claim(&j,a)?;
+    if j["run_id"].is_string(){return Err(bad("Semantic analysis already started for this job"));}
     let run_id=id();
     let run=json!({"id":run_id,"run_id":run_id,"job_id":key,"name":j["name"],"topic":j["topic"],"audience":j["audience"],"status":"annotating","annotations":{},"clusters":[],"opportunities":[],"created_at":chrono::Utc::now().to_rfc3339()});
     state::put(st,user,"llm-run",&run_id,&run).await?;
-    edit(st,user,"research-job",key,|v|{v["status"]=json!("semantic-analysis");v["run_id"]=json!(run_id);Ok(())}).await?;
+    edit(st,user,"research-job",key,|v|{verify_claim(v,a)?;v["status"]=json!("semantic-analysis");v["run_id"]=json!(run_id);Ok(())}).await?;
     Ok(json!({"run_id":run_id,"run":run}))
   },
   "get_research_job_validation_pack"=>{
@@ -230,9 +251,10 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
     Ok(json!({"job_id":j["id"],"opportunities":run["opportunities"],"clusters":run["clusters"],"needs":["pricing verification","competitor alternatives","counter-evidence","independent purchase signals"]}))
   },
   "submit_opportunity_validation"=>{
+    verify_job(st,user,a).await?;
     let key=require(a,"job_id")?;
     let validations=limited_array(a,"validations",100)?;
-    let j=edit(st,user,"research-job",key,|v|{append(v,"validations",validations,200);v["status"]=json!("complete");v["result_summary"]=a["result_summary"].clone();Ok(())}).await?;
+    let j=edit(st,user,"research-job",key,|v|{verify_claim(v,a)?;append(v,"validations",validations,200);v["status"]=json!("complete");v["result_summary"]=a["result_summary"].clone();v["claim_token"]=Value::Null;v["lease_until"]=Value::Null;Ok(())}).await?;
     Ok(json!({"job":j}))
   },
   _=>advanced::dispatch(st,user,name,a).await
