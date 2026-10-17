@@ -465,6 +465,10 @@
         "result_summary": {
           "type": "string",
           "description": "Optional concise explanation of why no opportunity survived synthesis/validation."
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Claim token returned by claim_research_job; required to mutate an active claimed job."
         }
       }
     }
@@ -1042,7 +1046,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "job_id"
+        "job_id",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -1065,6 +1070,10 @@
           "type": "integer",
           "minimum": 5,
           "maximum": 120
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Claim token returned by claim_research_job; required to mutate an active claimed job."
         }
       }
     }
@@ -1260,6 +1269,10 @@
       "properties": {
         "job_id": {
           "type": "string"
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Claim token returned by claim_research_job; required to mutate an active claimed job."
         }
       }
     }
@@ -1280,6 +1293,10 @@
         },
         "reason": {
           "type": "string"
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Claim token returned by claim_research_job; required to mutate an active claimed job."
         }
       }
     }
