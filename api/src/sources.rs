@@ -21,6 +21,7 @@ pub struct CollectInput {
     ranking:Option<String>,
     sample_size:Option<usize>,
     post_id:Option<String>,
+    batch_id:Option<String>,
 }
 #[derive(Clone,Debug)]
 struct Finding {
@@ -85,10 +86,10 @@ fn discourse_host(target:&str)->ApiResult<String>{
     Ok(host)
 }
 fn status_error(status:UpstreamStatus,source:&str)->ApiError{
-    if status==UpstreamStatus::TOO_MANY_REQUESTS || status==UpstreamStatus::FORBIDDEN{
-        ApiError(StatusCode::TOO_MANY_REQUESTS,format!("{source} access was refused or rate limited; check credentials, permissions, and provider limits"))
-    }else if status==UpstreamStatus::UNAUTHORIZED {
-        ApiError(StatusCode::BAD_GATEWAY,format!("{source} authentication was rejected"))
+    if status==UpstreamStatus::TOO_MANY_REQUESTS{
+        ApiError(StatusCode::TOO_MANY_REQUESTS,format!("{source} was rate limited; follow provider backoff"))
+    }else if status==UpstreamStatus::UNAUTHORIZED || status==UpstreamStatus::FORBIDDEN {
+        ApiError(StatusCode::FAILED_DEPENDENCY,format!("{source} refused access; check credentials and permissions"))
     }else{
         ApiError(StatusCode::BAD_GATEWAY,format!("{source} returned HTTP {status}"))
     }
@@ -272,7 +273,7 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
     if req.source=="arctic-shift" {
         return Ok(Json(crate::archive::collect(&st,user,crate::archive::Request {
             subreddit:req.target.unwrap_or_default().trim().to_owned(),query:req.query,days:req.days,
-            limit:req.limit,sample_size:req.sample_size,ranking:req.ranking,post_id:req.post_id,project_id:req.project_id,
+            limit:req.limit,sample_size:req.sample_size,ranking:req.ranking,post_id:req.post_id,project_id:req.project_id,batch_id:req.batch_id,
         }).await?));
     }
     if !supported(&req.source){return Err(bad("Unsupported source"));}
@@ -293,7 +294,10 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
     let mut tx=st.db.begin().await.map_err(internal)?;
     let mut saved=0usize;
     for finding in items.iter(){
-        let meta=json!({"connector":req.source,"collected_via":"official-or-published-public-interface","details":finding.metadata});
+        let community=finding.metadata.get("community").or_else(||finding.metadata.get("forum"))
+            .or_else(||finding.metadata.get("repository")).and_then(Value::as_str).unwrap_or("");
+        let meta=json!({"connector":req.source,"source_name":req.source,"community":community,
+            "collected_via":"official-or-published-public-interface","details":finding.metadata});
         sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=excluded.project_id,source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now()")
             .bind(user).bind(req.project_id).bind(&req.source).bind(short(&finding.id,255))
             .bind(short(&finding.url,2048)).bind(short(&finding.title,500)).bind(short(&finding.body,1200))
@@ -307,6 +311,11 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
 #[cfg(test)]
 mod tests{
     use super::*;
+ #[test] fn permission_denials_are_not_rate_limits(){
+  assert_eq!(status_error(UpstreamStatus::FORBIDDEN,"github").0,StatusCode::FAILED_DEPENDENCY);
+  assert_eq!(status_error(UpstreamStatus::UNAUTHORIZED,"github").0,StatusCode::FAILED_DEPENDENCY);
+  assert_eq!(status_error(UpstreamStatus::TOO_MANY_REQUESTS,"github").0,StatusCode::TOO_MANY_REQUESTS);
+ }
     #[test] fn bluesky_skips_opted_out_authors_and_bad_record_keys(){
         let v=json!({"posts":[
             {"uri":"at://did:plc:abc/app.bsky.feed.post/3kabc","author":{"handle":"alice.bsky.social","labels":[]},

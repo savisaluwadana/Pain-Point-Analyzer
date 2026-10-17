@@ -21,6 +21,7 @@ pub(crate) struct Request {
     pub ranking: Option<String>,
     pub post_id: Option<String>,
     pub project_id: Option<Uuid>,
+    pub batch_id: Option<String>,
 }
 fn valid_id(s: &str) -> bool { (1..=16).contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphanumeric()) }
 impl Request {
@@ -28,6 +29,7 @@ impl Request {
         if !(2..=21).contains(&self.subreddit.len()) || !self.subreddit.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
             return Err(bad("Use one subreddit name without r/ or a URL"));
         }
+        if self.batch_id.as_ref().is_some_and(|s| s.is_empty() || s.len()>120) { return Err(bad("batch_id must be 1–120 bytes")); }
         if self.query.as_ref().is_some_and(|q| q.len() > 160)
             || !(1..=365).contains(&self.days.unwrap_or(30))
             || !(1..=100).contains(&self.limit.unwrap_or(10))
@@ -84,7 +86,7 @@ fn select(payload: &Value, req: &Request) -> ApiResult<(usize, Vec<Item>)> {
         Some(Item { source_id, url, title: title.chars().take(500).collect(), body: body.chars().take(3000).collect(), published,
             metadata: json!({"provider":"arctic-shift", "source_name":"Arctic Shift", "community":req.subreddit.to_lowercase(),
                 "score":v["score"], "num_comments":v["num_comments"], "retrieved_on":v["retrieved_on"],
-                "thread_id":req.post_id.clone().unwrap_or_else(||text(v,"id")), "archived":true, "ranking":req.ranking.as_deref().unwrap_or("top")}) })
+                "thread_id":req.post_id.clone().unwrap_or_else(||text(v,"id")), "batch_id":req.batch_id, "archived":true, "ranking":req.ranking.as_deref().unwrap_or("top")}) })
     }).collect();
     if req.ranking.as_deref() == Some("new") { items.sort_by(|a,b| b.published.cmp(&a.published)); }
     else { items.sort_by(|a,b| b.metadata["score"].as_i64().unwrap_or(0).cmp(&a.metadata["score"].as_i64().unwrap_or(0))

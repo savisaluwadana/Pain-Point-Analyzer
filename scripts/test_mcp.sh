@@ -30,7 +30,15 @@ call analyze_pain_points '{"save_as":"integration scan"}' | jq -e '.report.evide
 job="$(call create_research_job '{"topic":"Manual reporting bottlenecks"}' | jq -r '.job.job_id')"
 call get_research_search_plan "{\"job_id\":\"$job\"}" | jq -e '.missions | length >= 4' >/dev/null
 call record_research_search_progress "{\"job_id\":\"$job\",\"queries\":[{\"query\":\"manual reporting workflows\"}]}" | jq -e '.memory.queries | length == 1' >/dev/null
-call claim_research_job '{}' | jq -e '.job.status == "claimed"' >/dev/null
+# Existing unrelated evidence must never make a fresh job appear ready.
+call evaluate_research_job_coverage "{\"job_id\":\"$job\"}" | jq -e '.evidence_total == 0 and .ready_for_synthesis == false' >/dev/null
+call ingest_evidence "{\"batch_id\":\"$job\",\"items\":[{\"source_kind\":\"forum\",\"external_id\":\"ci-linked-job\",\"url\":\"https://example.com/job\",\"text\":\"Repeated manual reporting takes hours\"}]}" | jq -e '.ingested == 1' >/dev/null
+call evaluate_research_job_coverage "{\"job_id\":\"$job\"}" | jq -e '.evidence_total == 1 and .ready_for_synthesis == false' >/dev/null
+claim="$(call claim_research_job '{}')"
+printf '%s' "$claim" | jq -e '.job.status == "claimed" and (.job.claim_token|length) > 10' >/dev/null
+claim_token="$(printf '%s' "$claim" | jq -r '.job.claim_token')"
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/mcp/execute" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data "{\"name\":\"heartbeat_research_job\",\"arguments\":{\"job_id\":\"$job\",\"claim_token\":\"wrong\"}}")" = 400
+call heartbeat_research_job "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\",\"status\":\"collecting\"}" | jq -e '.job.status == "collecting"' >/dev/null
 run="$(call start_job_semantic_analysis "{\"job_id\":\"$job\"}" | jq -r '.run_id')"
 evidence_id="$(call get_llm_evidence_batch "{\"run_id\":\"$run\"}" | jq -r '.evidence[0].id')"
 test -n "$evidence_id"
@@ -131,10 +139,23 @@ evidence_id="$(call search_evidence '{"q":"spreadsheets"}' | jq -r '.items[0].id
 curl --fail-with-body -sS "$api/evidence/$evidence_id" -X DELETE \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 call search_evidence '{"q":"spreadsheets"}' | jq -e '.returned == 0' >/dev/null
+# Regression: excluding already annotated evidence must happen before LIMIT 500.
+sql "INSERT INTO evidence(owner_id,source_kind,source_id,source_url,title,body)
+ SELECT '$owner','manual','ci-page-'||n,'https://example.com/page/'||n,'Other subject','routine content'
+ FROM generate_series(1,505) AS g(n)" >/dev/null
+pagination_run="$(call start_llm_research_run '{"name":"pagination regression"}' | jq -r '.run.id')"
+sql "UPDATE mcp_records SET payload=jsonb_set(payload,'{annotations}',
+ (SELECT jsonb_object_agg(id::text,jsonb_build_object('evidence_id',id::text)) FROM
+ (SELECT id FROM evidence WHERE owner_id='$owner' ORDER BY collected_at DESC,id DESC LIMIT 500) v))
+ WHERE owner_id='$owner' AND kind='llm-run' AND id='$pagination_run'" >/dev/null
+call get_llm_evidence_batch "{\"run_id\":\"$pagination_run\"}" | jq -e '.returned > 0' >/dev/null
+# Regression: a specific research question excludes unrelated account-wide evidence.
+curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-specific-topic","source_url":"","title":"Unique analytical signal","body":"uniquesubjectkeyword reliability concern"}' | jq -e '.id|length > 5' >/dev/null
+curl --fail-with-body -sS -X POST "$api/research/analyze" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"topic":"uniquesubjectkeyword"}' | jq -e '.report.evidence_scanned == 1' >/dev/null
 curl --fail-with-body -sS "$api/privacy/delete-data" -X POST \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 test "$(curl -s -o /dev/null -w '%{http_code}' "$api/me" -H "Cookie: pil_session=$session")" = 401
 test "$(curl -s -o /dev/null -w '%{http_code}' "$api/mcp/execute" \
   -H "Authorization: Bearer $token" -H 'Content-Type: application/json' \
   --data '{"name":"platform_status","arguments":{}}')" = 401
-echo "Rust MCP integration: authorized workflows, 57 schemas, and tenant isolation passed."
+echo "Rust MCP integration: authorized workflows, 58 schemas, tenant isolation and regression checks passed."

@@ -101,7 +101,8 @@ pub async fn analyze(State(st):State<AppState>,headers:HeaderMap,Json(body):Json
  let rows:Vec<(Uuid,String,String,String,String)>=sqlx::query_as("SELECT id,source_kind,source_id,title,body FROM evidence WHERE owner_id=$1 AND ($2::uuid IS NULL OR project_id=$2) ORDER BY collected_at DESC LIMIT 1000")
    .bind(uid).bind(body.project_id).fetch_all(&st.db).await.map_err(internal)?;
  let items=rows.into_iter().map(|(id,source_kind,source_id,title,body)|EvidenceText{id,source_kind,source_id,text:format!("{title}\n{body}")}).collect::<Vec<_>>();
- let report=scoring::analyze(&items);
+ let relevant=scoring::relevant_to_topic(&items,&body.topic);
+  let report=scoring::analyze(&relevant);
  let mut tx=st.db.begin().await.map_err(internal)?;
  let run_id:Uuid=sqlx::query_scalar("INSERT INTO research_runs(owner_id,project_id,topic,report) VALUES($1,$2,$3,$4) RETURNING id")
    .bind(uid).bind(body.project_id).bind(body.topic.trim()).bind(json!(&report)).fetch_one(&mut *tx).await.map_err(internal)?;
@@ -115,10 +116,10 @@ pub async fn analyze(State(st):State<AppState>,headers:HeaderMap,Json(body):Json
  Ok(Json(json!({"run_id":run_id,"report":report})))
 }
 #[derive(Serialize,FromRow)]
-pub struct RunRow {id:Uuid,topic:String,report:Value,created_at:DateTime<Utc>}
+pub struct RunRow {id:Uuid,project_id:Option<Uuid>,topic:String,report:Value,created_at:DateTime<Utc>}
 pub async fn runs(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<Vec<RunRow>>>{
  let uid=oauth::user_id(&st,&headers).await?;
- let rows=sqlx::query_as("SELECT id,topic,report,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 100").bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+ let rows=sqlx::query_as("SELECT id,project_id,topic,report,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 100").bind(uid).fetch_all(&st.db).await.map_err(internal)?;
  Ok(Json(rows))
 }
 #[derive(Serialize,FromRow)]

@@ -28,9 +28,9 @@ jobs:
       - name: Rust compilation and unit tests
         working-directory: api
         run: |
-          cargo check --all-targets
-          cargo test
-          cargo test archive_database_contract -- --ignored
+          cargo check --all-targets --locked
+          cargo test --locked
+          cargo test --locked archive_database_contract -- --ignored
   next:
     runs-on: ubuntu-latest
     steps:
@@ -41,7 +41,7 @@ jobs:
       - name: Next.js production build
         working-directory: web
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run typecheck
           npm run build
   compose:
