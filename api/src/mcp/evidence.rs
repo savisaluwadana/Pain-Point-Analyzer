@@ -87,10 +87,30 @@ pub(super) async fn scans(st:&AppState,owner:Uuid,args:&Value)->ApiResult<Value>
  let all=state::list(st,owner,"saved-analysis",args["limit"].as_i64().unwrap_or(20)).await?;
  Ok(json!({"scans":all}))
 }
+// Isolate progress for each research job; other account evidence must not
+// make a newly created job look complete.
+pub(super) async fn stats_for_batch(st:&AppState,owner:Uuid,batch:&str)->ApiResult<Value>{
+ let rows:Vec<(String,i64)>=sqlx::query_as(
+  "SELECT source_kind,count(*) FROM evidence WHERE owner_id=$1 AND metadata->>'batch_id'=$2 GROUP BY source_kind ORDER BY count(*) DESC")
+  .bind(owner).bind(batch).fetch_all(&st.db).await.map_err(internal)?;
+ let total:i64=rows.iter().map(|(_,count)|*count).sum();
+ Ok(json!({"total":total,"bySourceKind":rows.iter().map(|(source,count)|
+  json!({"source":source,"count":count})).collect::<Vec<_>>()}))
+}
 pub(super) async fn stats(st:&AppState,owner:Uuid)->ApiResult<Value>{
  let data:Vec<(String,i64)>=sqlx::query_as("SELECT source_kind,count(*) FROM evidence WHERE owner_id=$1 GROUP BY source_kind ORDER BY count(*) DESC").bind(owner).fetch_all(&st.db).await.map_err(internal)?;
  let total:i64=data.iter().map(|(_,c)|c).sum();
  Ok(json!({"total":total,"bySourceKind":data.iter().map(|(source,count)|json!({"source":source,"count":count})).collect::<Vec<_>>()}))
+}
+// Apply the already-annotated exclusion in SQL, BEFORE LIMIT. A run can
+// otherwise never reach older evidence once its newest 500 items are annotated.
+pub(super) async fn list_unannotated_for_run(st:&AppState,owner:Uuid,limit:i64,annotated:&[String])->ApiResult<Vec<Value>>{
+ let rows:Vec<(Uuid,String,String,String,String,String,Value)>=sqlx::query_as(
+  "SELECT id,source_kind,source_id,source_url,title,body,metadata FROM evidence WHERE owner_id=$1 AND NOT (id::text = ANY($3::text[])) ORDER BY collected_at DESC,id DESC LIMIT $2")
+  .bind(owner).bind(limit.clamp(1,200)).bind(annotated).fetch_all(&st.db).await.map_err(internal)?;
+ Ok(rows.iter().map(|(id,source_kind,source_id,url,title,body,metadata)|
+  json!({"id":id,"source_kind":source_kind,"source_id":source_id,"url":url,"title":title,"text":body,"metadata":metadata})
+ ).collect())
 }
 pub(super) async fn list_for_run(st:&AppState,owner:Uuid,limit:i64)->ApiResult<Vec<Value>>{
  let rows:Vec<(Uuid,String,String,String,String,String,Value)>=sqlx::query_as(
