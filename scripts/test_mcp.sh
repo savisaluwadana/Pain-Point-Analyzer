@@ -116,6 +116,16 @@ manual_id="$(curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_s
 curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-manual-upsert","source_url":"https://example.com/current-source","title":"Updated link","body":"Accessibility issue","project_id":null}' | jq -e --arg id "$manual_id" '.id == $id' >/dev/null
 test "$(sql "SELECT (project_id='$project_id')::text||':'||source_url FROM evidence WHERE id='$manual_id'")" = 'true:https://example.com/current-source'
 test "$(sql "SELECT count(*) FROM evidence_projects WHERE owner_id='$owner' AND evidence_id='$manual_id' AND project_id='$project_id'")" = 1
+second_project="$(curl --fail-with-body -sS -X POST "$api/projects" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"name":"Independent project B"}' | jq -r '.id')"
+curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data "{\"source_kind\":\"manual\",\"source_id\":\"ci-manual-upsert\",\"source_url\":\"https://example.com/current-source\",\"body\":\"manual spreadsheet accessibility issue\",\"project_id\":\"$second_project\"}" | jq -e --arg id "$manual_id" '.id == $id' >/dev/null
+test "$(sql "SELECT count(*) FROM evidence_projects WHERE owner_id='$owner' AND evidence_id='$manual_id'")" = 2
+curl --fail-with-body -sS "$api/evidence?project_id=$project_id" -H "Cookie: pil_session=$session" | jq -e --arg id "$manual_id" 'any(.[]; .id == $id)' >/dev/null
+curl --fail-with-body -sS "$api/evidence?project_id=$second_project" -H "Cookie: pil_session=$session" | jq -e --arg id "$manual_id" 'any(.[]; .id == $id)' >/dev/null
+curl --fail-with-body -sS -X POST "$api/research/analyze" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data "{\"topic\":\"Recurring community needs that open-source projects could address\",\"project_id\":\"$second_project\"}" | jq -e '.report.clusters | length > 0' >/dev/null
+curl --fail-with-body -sS "$api/opportunities?project_id=$second_project" -H "Cookie: pil_session=$session" | jq -e 'length > 0' >/dev/null
+curl --fail-with-body -sS "$api/opportunities?project_id=$project_id" -H "Cookie: pil_session=$session" | jq -e 'length == 0' >/dev/null
+curl --fail-with-body -sS "$api/projects/$second_project" -X DELETE \
+  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 curl --fail-with-body -sS "$api/privacy/export" -H "Cookie: pil_session=$session" | \
@@ -162,7 +172,13 @@ sql "UPDATE mcp_records SET payload=jsonb_set(payload,'{annotations}',
 call get_llm_evidence_batch "{\"run_id\":\"$pagination_run\"}" | jq -e '.returned > 0' >/dev/null
 # Regression: a specific research question excludes unrelated account-wide evidence.
 curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-specific-topic","source_url":"","title":"Unique analytical signal","body":"uniquesubjectkeyword reliability concern"}' | jq -e '.id|length > 5' >/dev/null
+# Push older relevant evidence beyond the previous 1,000-row pre-filter limit.
+sql "INSERT INTO evidence(owner_id,source_kind,source_id,source_url,title,body)
+ SELECT '$owner','manual','ci-newer-noise-'||n,'','Unrelated note','No matching keywords'
+ FROM generate_series(1,1005) AS g(n)" >/dev/null
 curl --fail-with-body -sS -X POST "$api/research/analyze" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"topic":"uniquesubjectkeyword"}' | jq -e '.report.evidence_scanned == 1' >/dev/null
+call analyze_pain_points '{"q":"%"}' | jq -e '.report.evidence_scanned == 0' >/dev/null
+call analyze_pain_points '{"q":"_"}' | jq -e '.report.evidence_scanned == 0' >/dev/null
 curl --fail-with-body -sS "$api/privacy/delete-data" -X POST \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 test "$(curl -s -o /dev/null -w '%{http_code}' "$api/me" -H "Cookie: pil_session=$session")" = 401
