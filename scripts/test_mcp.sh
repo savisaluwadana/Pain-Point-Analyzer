@@ -39,13 +39,13 @@ other_batch="$(call create_research_job '{"topic":"Secondary research batch"}' |
 call ingest_evidence "{\"batch_id\":\"$other_batch\",\"items\":[{\"source_kind\":\"forum\",\"external_id\":\"ci-linked-job\",\"url\":\"https://example.com/job\",\"text\":\"Repeated manual reporting takes hours\"}]}" | jq -e '.ingested == 1' >/dev/null
 call evaluate_research_job_coverage "{\"job_id\":\"$job\"}" | jq -e '.evidence_total == 1' >/dev/null
 call evaluate_research_job_coverage "{\"job_id\":\"$other_batch\"}" | jq -e '.evidence_total == 1' >/dev/null
+call fail_research_job "{\"job_id\":\"$other_batch\",\"reason\":\"CI fixture completed\"}" | jq -e '.job.status == "failed"' >/dev/null
 # New research job is intentionally queued after the original: claim oldest first.
 claim="$(call claim_research_job '{}')"
 printf '%s' "$claim" | jq -e '.job.status == "claimed" and (.job.claim_token|length) > 10' >/dev/null
 claim_token="$(printf '%s' "$claim" | jq -r '.job.claim_token')"
 call get_research_job "{\"job_id\":\"$job\"}" | jq -e '.job.claim_token == null' >/dev/null
 call list_research_jobs '{}' | jq -e 'all(.jobs[]; .claim_token == null)' >/dev/null
-curl --fail-with-body -sS "$api/mcp/research-jobs" -H "Cookie: pil_session=not-valid" >/dev/null 2>&1 || true
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/mcp/execute" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data "{\"name\":\"start_job_semantic_analysis\",\"arguments\":{\"job_id\":\"$job\",\"claim_token\":\"wrong\"}}")" = 400
 test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$api/mcp/execute" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data "{\"name\":\"heartbeat_research_job\",\"arguments\":{\"job_id\":\"$job\",\"claim_token\":\"wrong\"}}")" = 400
 call heartbeat_research_job "{\"job_id\":\"$job\",\"claim_token\":\"$claim_token\",\"status\":\"collecting\"}" | jq -e '.job.status == "collecting"' >/dev/null
