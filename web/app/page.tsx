@@ -12,7 +12,7 @@ type HostRun={id:string;topic:string;name:string;status:string;clusters:unknown[
 type HostWorkspace={id:string;stage:string;opportunity:{title:string;problem:string};experiments:unknown[]};
 type HostJob={id:string;topic:string;status:string;pass:number};
 type ApiKey={id:string;label:string;created_at:string;last_used_at:string|null};
-type Opportunity={id:string;title:string;problem:string;score:number;evidence_refs:string[];created_at:string};
+type Opportunity={id:string;project_id:string|null;title:string;problem:string;score:number;evidence_refs:string[];created_at:string};
 type SourceOption={id:string;name:string;mode:'keyword'|'video'|'forum'|'tag'|'subreddit';ready:boolean;note:string};
 type SourceCatalog={sources:SourceOption[]};
 
@@ -82,14 +82,14 @@ export default function Home(){
      loadList(api<Evidence[]>('/evidence?limit=200'),setItems),
      loadList(api<Run[]>('/research/runs'),setRuns),
      loadList(api<Job[]>('/research/jobs'),setJobs),
-     loadList(api<Opportunity[]>('/opportunities'),setOpportunities),
+     loadList(api<Opportunity[]>('/opportunities'+(selected?'?project_id='+encodeURIComponent(selected):'')),setOpportunities),
      loadList(api<ApiKey[]>('/mcp/keys'),setKeys),
      loadList(api<HostRun[]>('/mcp/runs'),setHostRuns),
      loadList(api<HostWorkspace[]>('/mcp/workspaces'),setHostWorkspaces),
      loadList(api<HostJob[]>('/mcp/research-jobs'),setHostJobs)
    ]);
    if(results.some(success=>!success))setNotice('Some research sections could not load. Your session is still active; refresh to retry.');
- },[]);
+ },[selected]);
  useEffect(()=>{void load();},[load]);
  useEffect(()=>{void api<SourceCatalog>('/sources').then(v=>setCatalog(v.sources)).catch(()=>setCatalog([]));},[]);
  const chosenSource=catalog.find(x=>x.id===source);
