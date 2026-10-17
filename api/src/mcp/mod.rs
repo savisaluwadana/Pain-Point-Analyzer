@@ -94,5 +94,5 @@ pub async fn user_workspaces(State(st):State<AppState>,headers:HeaderMap)->ApiRe
 }
 pub async fn user_research_jobs(State(st):State<AppState>,headers:HeaderMap)->ApiResult<Json<Vec<Value>>>{
  let owner=crate::oauth::user_id(&st,&headers).await?;
- Ok(Json(state::list(&st,owner,"research-job",100).await?))
+ Ok(Json(state::list(&st,owner,"research-job",100).await?.iter().map(state::public_job).collect()))
 }
