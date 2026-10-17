@@ -4,7 +4,7 @@
 
 **From community conversations to useful open-source projects.**
 
-**Get started:** [Reddit archive quick start](docs/ARCTIC_SHIFT.md) · [Five-minute fictional demo](docs/DEMO.md) · [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md) · [Known limitations](#limitations) · [Give alpha feedback](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/new/choose)
+**Get started:** [Reddit archive quick start](docs/ARCTIC_SHIFT.md) · [Five-minute fictional demo](docs/DEMO.md) · [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md) · [Architecture](#architecture) · [Known limitations](#limitations) · [Give alpha feedback](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/new/choose)
 
 This project analyzes short, source-linked observations so contributors can **investigate** recurring challenges and potential open-source contributions. Themes are provisional hypotheses, not endorsements, verified demand, or a substitute for reading the original discussions.
 
@@ -88,24 +88,57 @@ After configuring secrets, run `docker compose up --build -d --wait`. Open **htt
 
 ## Architecture
 
-| Component | Technology | Location |
-| --- | --- | --- |
-| API and collector | Rust, Axum, Tokio, SQLx | `api/` |
-| Local dashboard | Next.js, React, TypeScript | `web/` |
-| Source evidence and research | PostgreSQL 17 | `db/` |
-| Optional research host bridge | Rust MCP over JSON-RPC stdio | `api/src/mcp/` |
-| Integration checks | Docker + application / MCP scenarios | `scripts/test_mcp.sh` |
+Open Source Discovery Lab is a **local, three-service Docker Compose application**: a Next.js dashboard, a Rust API, and PostgreSQL. The Rust API also runs the Tokio background worker; the optional MCP adapter runs on the research host, not as another Compose service.
+
+### System overview
 
 ```mermaid
 flowchart TB
-  Browser["Local Next.js dashboard"] --> API["Rust API"]
-  Host["Optional AI research host"] --> MCP["Rust MCP bridge"]
-  MCP --> API
-  API --> PG[("PostgreSQL")]
-  API -->|Read-only API or RSS| Sources["GitHub / HN / Stack Exchange / Bluesky / YouTube / Discourse / Medium"]
-  API -->|Bounded archive samples| Archive["Arctic Shift"]
-  API -->|Approved OAuth only| Reddit["Reddit Data API"]
+  Operator["Local operator<br/>Browser"] -->|"localhost:3000"| Web
+  Host["Optional AI research host<br/>Claude / Codex / compatible MCP client"] -->|"JSON-RPC over stdio"| Bridge["Rust MCP stdio adapter<br/>api --mcp"]
+
+  subgraph Local["Local Docker Compose stack"]
+    direction TB
+    Web["Next.js dashboard<br/>React + TypeScript"] -->|"Same-origin /api rewrite"| Api["Rust Axum API<br/>Tokio + SQLx"]
+    Api <-->|"SQL queries and migrations"| DB[("PostgreSQL 17<br/>Evidence, projects, runs, MCP state")]
+    Worker["Tokio background worker<br/>inside the Rust API process"] <-->|"Leased jobs and evidence"| DB
+  end
+
+  Bridge -->|"Revocable bearer key<br/>/api/mcp/execute"| Web
+  Api -->|"Bounded read-only requests"| Community["GitHub / Hacker News / Stack Overflow<br/>Bluesky / YouTube / Discourse / Medium"]
+  Api -->|"Bounded archive sampling"| Arctic["Arctic Shift<br/>Reddit archive"]
+  Api -->|"Approved OAuth only"| Reddit["Reddit Data API"]
+  Worker -->|"Approved OAuth jobs only"| Reddit
 ```
+
+| Component | Technology | Location / responsibility |
+| --- | --- | --- |
+| Dashboard and API proxy | Next.js, React, TypeScript | `web/` — local interface and same-origin `/api/*` forwarding |
+| HTTP API and collectors | Rust, Axum, Tokio, SQLx | `api/` — authentication, source policies, evidence, research, and MCP execution |
+| Evidence and research storage | PostgreSQL 17 | `db/` — SQL migrations; evidence, projects, runs, job state, and revocable keys |
+| Background job loop | Tokio task in the Rust API process | `api/src/jobs.rs` — leased, approved direct-Reddit-OAuth collection jobs |
+| Optional MCP host bridge | Rust, JSON-RPC 2.0 over stdio | `api/src/mcp/` — calls the same API with a revocable per-account key |
+| Integration checks | GitHub Actions, Docker Compose | `scripts/test_mcp.sh`, `.github/workflows/ci.yml` |
+
+### How evidence becomes a finding
+
+```mermaid
+flowchart LR
+  Capture["Source collection<br/>Manual evidence or MCP ingestion"] --> Checks["Validate permissions,<br/>bounds and provenance"]
+  Checks --> Evidence[("PostgreSQL<br/>Source-linked evidence")]
+  Evidence --> Filter["Topic-aware<br/>keyword selection"]
+  Filter --> Group["Group independent discussions<br/>and apply heuristic scores"]
+  Group --> Report[("Saved research runs")]
+  Report --> Review["Dashboard review<br/>and independent validation"]
+  Evidence -->|"Read scoped batches via API"| Optional["Optional external MCP host<br/>Semantic annotation and synthesis"]
+  Optional -->|"Submit results via API"| Records[("Owner-scoped MCP records")]
+```
+
+The **built-in analysis is deterministic and keyword-based**, not autonomous AI inference. A connected MCP host can perform its own permitted browsing and semantic reasoning, while Rust validates and stores submitted evidence IDs, annotations, and research state. Scores represent investigation priorities, **not verified market demand**.
+
+**Request and security boundaries:** the browser reaches only the loopback-bound Next.js port; Next.js rewrites `/api/*` to the internal Rust API. Browser mutations require authenticated same-origin sessions; MCP requests use revocable bearer credentials. Providers have bounded request and retention policies. **Arctic Shift collection runs on demand; the background worker is only for separately approved direct Reddit OAuth.** Neither archive access nor a passing CI run grants third-party content-use permissions.
+
+For module-level design, database ownership, source budgets, authentication, and security details, see [the full architecture documentation](docs/ARCHITECTURE.md), the [connector guide](docs/SOURCES.md), and the [MCP workflow](docs/MCP.md).
 
 ### Current features
 
@@ -121,8 +154,8 @@ flowchart TB
 ## Technical development
 
 ```bash
-(cd api && cargo check --all-targets && cargo test)
-(cd web && npm install && npm run typecheck && npm run build)
+(cd api && cargo check --all-targets --locked && cargo test --locked)
+(cd web && npm ci && npm run typecheck && npm run build)
 ```
 
 Run these checks from the repository root. CI covers the Rust API, Next.js production build, Docker configuration and a PostgreSQL-backed integration flow. It does not establish approval or test real Reddit OAuth credentials.
