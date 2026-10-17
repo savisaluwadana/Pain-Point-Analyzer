@@ -56,7 +56,12 @@ call submit_llm_annotations "{\"run_id\":\"$run\",\"annotations\":[{\"evidence_i
 call submit_llm_synthesis "{\"run_id\":\"$run\",\"clusters\":[{\"cluster_id\":\"manual-reports\",\"label\":\"Manual reporting\",\"problem_statement\":\"Workaround burden\",\"evidence_ids\":[\"$evidence_id\"]}],\"opportunities\":[{\"opportunity_id\":\"reporting-saas\",\"title\":\"Reporting workflow automation\",\"problem\":\"Manual work\",\"cluster_ids\":[\"manual-reports\"],\"evidence_ids\":[\"$evidence_id\"],\"opportunity_score\":30}]}" | jq -e '.run.status == "synthesized"' >/dev/null
 workspace="$(call create_opportunity_workspace "{\"run_id\":\"$run\",\"opportunity_id\":\"reporting-saas\"}" | jq -r '.workspace.workspace_id')"
 call get_opportunity_execution_pack "{\"workspace_id\":\"$workspace\"}" | jq -e '.workspace.stage == "discovery"' >/dev/null
-call claim_research_job '{}' | jq -e '.job == null' >/dev/null
+claim_check="$(call claim_research_job '{}')"
+if ! printf '%s' "$claim_check" | jq -e '.job == null' >/dev/null; then
+  echo "Unexpected claim after semantic analysis:" >&2
+  printf '%s' "$claim_check" | jq -c '{job_id:.job.job_id,status:.job.status}' >&2
+  exit 1
+fi
 # An interrupted MCP host must not strand its claimed job forever.
 orphan_job="$(call create_research_job '{"topic":"Abandoned host recovery"}' | jq -r '.job.job_id')"
 call claim_research_job '{"harness":"host-one"}' | jq -e --arg id "$orphan_job" '.job.job_id == $id and .job.claimed_by == "host-one"' >/dev/null
