@@ -113,7 +113,7 @@ pub async fn analyze(State(st):State<AppState>,headers:HeaderMap,Json(body):Json
  let rows:Vec<(Uuid,String,String,String,String)>=sqlx::query_as(
   "SELECT id,source_kind,source_id,title,body FROM evidence WHERE owner_id=$1 AND
    ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM evidence_projects ep WHERE ep.owner_id=evidence.owner_id AND ep.evidence_id=evidence.id AND ep.project_id=$2))
-   AND (cardinality($3::text[])=0 OR EXISTS(SELECT 1 FROM unnest($3::text[]) AS term WHERE strpos(lower(title || E'\\n' || body),term)>0))
+   AND (cardinality($3::text[])=0 OR EXISTS(SELECT 1 FROM unnest($3::text[]) AS keyword(word) WHERE strpos(lower(title || E'\\n' || body),word)>0))
    ORDER BY collected_at DESC LIMIT 1000")
    .bind(uid).bind(body.project_id).bind(&terms).fetch_all(&st.db).await.map_err(internal)?;
  let items=rows.into_iter().map(|(id,source_kind,source_id,title,body)|EvidenceText{id,source_kind,source_id,text:format!("{title}\n{body}")}).collect::<Vec<_>>();
