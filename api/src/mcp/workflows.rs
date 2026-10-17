@@ -91,10 +91,7 @@ pub(super) async fn dispatch(st:&AppState,user:Uuid,name:&str,a:&Value)->ApiResu
     let status=match name{"fail_research_job"=>"failed","requeue_research_job"=>"queued",_=>"complete"};
     let value=edit(st,user,"research-job",key,|v|{
       let active=["claimed","collecting","gap-research","semantic-analysis","opportunity-validation"];
-      if active.iter().any(|s|v["status"]==*s) &&
-         (a["claim_token"].as_str().is_none_or(str::is_empty) || v["claim_token"]!=a["claim_token"]){
-       return Err(bad("Job claim token required for an active lease"));
-      }
+      if active.iter().any(|s|v["status"]==*s){verify_claim(v,a)?;}
       v["status"]=json!(status);v["stage"]=json!(status);
       v["lease_until"]=Value::Null;v["claim_token"]=Value::Null;
       if status=="failed"{v["last_error"]=json!(string(a,"reason"));}
