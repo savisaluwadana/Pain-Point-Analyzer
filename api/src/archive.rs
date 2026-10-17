@@ -1,5 +1,5 @@
 //! Bounded Arctic Shift archive reads. Never uses Reddit credentials or browser cookies.
-use crate::{bad, internal, research::assert_project, ApiError, ApiResult, AppState};
+use crate::{bad, internal, research::{assert_project,link_project}, ApiError, ApiResult, AppState};
 use axum::http::StatusCode;
 use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
@@ -156,9 +156,14 @@ async fn persist(st: &AppState, owner: Uuid, req: &Request, payload: &Value) -> 
     let mut tx = st.db.begin().await.map_err(internal)?;
     let mut ids = Vec::new();
     for item in &items {
-        let id: Uuid = sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=excluded.project_id,source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
+        let id: Uuid = sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
             .bind(owner).bind(req.project_id).bind(kind).bind(&item.source_id).bind(&item.url).bind(&item.title).bind(&item.body).bind(item.published).bind(&item.metadata)
             .fetch_one(&mut *tx).await.map_err(internal)?;
+        link_project(&mut tx,owner,id,req.project_id).await?;
+        if let Some(batch)=req.batch_id.as_deref(){
+         sqlx::query("INSERT INTO evidence_batches(owner_id,evidence_id,batch_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING")
+          .bind(owner).bind(id).bind(batch).execute(&mut *tx).await.map_err(internal)?;
+        }
         ids.push(id);
     }
     tx.commit().await.map_err(internal)?;
