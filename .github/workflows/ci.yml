@@ -28,12 +28,9 @@ jobs:
       - name: Rust compilation and unit tests
         working-directory: api
         run: |
-          cargo check --all-targets
-          cargo test
-          cargo test archive_database_contract -- --ignored
-      - name: Capture generated Cargo lockfile for version pinning
-        run: |
-          base64 -w0 api/Cargo.lock | fold -w 1000 | sed 's/^/CARGO_CHUNK:/'
+          cargo check --all-targets --locked
+          cargo test --locked
+          cargo test --locked archive_database_contract -- --ignored
   next:
     runs-on: ubuntu-latest
     steps:
@@ -44,12 +41,9 @@ jobs:
       - name: Next.js production build
         working-directory: web
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run typecheck
           npm run build
-      - name: Capture generated npm lockfile for version pinning
-        run: |
-          base64 -w0 web/package-lock.json | fold -w 1000 | sed 's/^/WEB_CHUNK:/'
   compose:
     runs-on: ubuntu-latest
     steps:
