@@ -6,7 +6,7 @@ type Project={id:string;name:string;description:string;created_at:string};
 type Evidence={id:string;source_kind:string;source_id:string;source_url:string;title:string;body:string;metadata?:{details?:{author?:string;license?:string;license_url?:string}};collected_at:string};
 type Cluster={category:string;independent_stories:number;evidence_count:number;severity_score:number;examples:string[]};
 type Report={evidence_scanned:number;independent_stories:number;clusters:Cluster[];caveat:string};
-type Run={id:string;topic:string;report:Report;created_at:string};
+type Run={id:string;project_id:string|null;topic:string;report:Report;created_at:string};
 type Job={id:string;subreddit:string;status:string;attempts:number;last_error:string|null;created_at:string};
 type HostRun={id:string;topic:string;name:string;status:string;clusters:unknown[];opportunities:unknown[];annotations:Record<string,unknown>};
 type HostWorkspace={id:string;stage:string;opportunity:{title:string;problem:string};experiments:unknown[]};
@@ -102,7 +102,7 @@ export default function Home(){
    finally{setBusy(false);}
  }
  const project_id=selected||null;
- const latest=runs[0];
+ const latest=runs.find(r=>!selected||r.project_id===selected);
  return <div className="shell">
   <aside className="sidebar">
     <div className="brand"><span className="brand-symbol">◈</span><span>Open Source<span className="brand-os"> Discovery Lab</span></span></div>
@@ -161,7 +161,7 @@ export default function Home(){
        <p className="disclaimer">Selects up to 10 items from at most 100 recent archive records. Scores may be stale. Wait at least 10 seconds between calls. Use no more than 10 communities per research run.</p>
       </>}
       <label htmlFor="sourceProject">Research project</label><select id="sourceProject" value={selected} onChange={e=>setSelected(e.target.value)}><option value="">Unassigned evidence</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>
-      <button className="primary" disabled={!user||busy||!chosenSource||!chosenSource.ready} onClick={()=>void act(async()=>{const result=await api<{saved:number;fetched?:number;eligible?:number;note?:string}>('/sources/collect',{method:'POST',body:JSON.stringify({source,query:sourceQuery,target:sourceTarget,project_id,limit:source==='arctic-shift'?10:15,...(source==='arctic-shift'?{days:archiveDays,ranking:archiveRanking,sample_size:100,post_id:archivePost.trim()||undefined}:{})})});setSourceResult(result.saved+' new or updated evidence records saved'+(result.fetched!==undefined?' from '+result.fetched+' fetched / '+result.eligible+' eligible. '+result.note:''));},'Source collection completed')}>{busy?'Collecting…':'Collect source evidence →'}</button>
+      <button className="primary" disabled={!user||busy||!chosenSource||!chosenSource.ready} onClick={()=>{setSourceResult('');void act(async()=>{const result=await api<{saved:number;fetched?:number;eligible?:number;note?:string}>('/sources/collect',{method:'POST',body:JSON.stringify({source,query:sourceQuery,target:sourceTarget,project_id,limit:source==='arctic-shift'?10:15,...(source==='arctic-shift'?{days:archiveDays,ranking:archiveRanking,sample_size:100,post_id:archivePost.trim()||undefined}:{})})});setSourceResult(result.saved+' new or updated evidence records saved'+(result.fetched!==undefined?' from '+result.fetched+' fetched / '+result.eligible+' eligible. '+result.note:''));},'Source collection completed');}}>{busy?'Collecting…':'Collect source evidence →'}</button>
       {sourceResult&&<p className="disclaimer" role="status">{sourceResult}</p>}
      </section>
      <section className="panel"><div className="panel-heading"><span className="eyebrow">CONNECTOR STATUS</span><h2>Supported sources</h2></div><div className="list">{catalog.map(s=><div key={s.id} className="list-item"><b>{s.name}</b><span className="pill">{s.ready?'Available to try':'Credentials / allowlist needed'}</span><p>{s.note}</p></div>)}</div><p className="disclaimer">Content rights, API quotas, and provider policies still apply. Confirm original context before building an open-source project.</p></section>
