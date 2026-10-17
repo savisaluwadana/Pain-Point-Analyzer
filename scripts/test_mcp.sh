@@ -150,7 +150,7 @@ sql "UPDATE mcp_records SET payload=jsonb_set(payload,'{annotations}',
  WHERE owner_id='$owner' AND kind='llm-run' AND id='$pagination_run'" >/dev/null
 call get_llm_evidence_batch "{\"run_id\":\"$pagination_run\"}" | jq -e '.returned > 0' >/dev/null
 # Regression: a specific research question excludes unrelated account-wide evidence.
-curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-specific-topic","title":"Unique analytical signal","body":"uniquesubjectkeyword reliability concern"}' | jq -e '.id|length > 5' >/dev/null
+curl --fail-with-body -sS -X POST "$api/evidence" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"source_kind":"manual","source_id":"ci-specific-topic","source_url":"","title":"Unique analytical signal","body":"uniquesubjectkeyword reliability concern"}' | jq -e '.id|length > 5' >/dev/null
 curl --fail-with-body -sS -X POST "$api/research/analyze" -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' --data '{"topic":"uniquesubjectkeyword"}' | jq -e '.report.evidence_scanned == 1' >/dev/null
 curl --fail-with-body -sS "$api/privacy/delete-data" -X POST \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
