@@ -57,16 +57,20 @@ pub fn analyze(evidence:&[EvidenceText])->Report{
  Report{evidence_scanned:evidence.len(),independent_stories:unique.len(),clusters,caveat:"Heuristic triage only. Scores are not buying intent, market size or proof of demand; verify independent sources and contradictory evidence.".into()}
 }
 // Keyword matching is a conservative relevance gate, not semantic classification.
-pub fn relevant_to_topic(evidence:&[EvidenceText],topic:&str)->Vec<EvidenceText>{
+pub fn topic_terms(topic:&str)->Vec<String>{
  let query=topic.to_ascii_lowercase();
- if query.contains("recurring community needs") || query.contains("open-source projects could help communities"){return evidence.to_vec();}
+ if query.contains("recurring community needs") || query.contains("open-source projects could help communities"){return Vec::new();}
  const STOP:&[&str]=&["a","an","the","and","or","in","of","on","for","to","from",
   "what","which","who","why","how","are","is","do","does","can","could","would",
   "find","discover","identify","research","issues","problem","problems","pain",
   "points","needs","users","people","community","communities","software","tools",
   "with","about","using","related","recurring","common","open","source","project"];
- let terms:HashSet<String>=query.split(|c:char|!c.is_ascii_alphanumeric())
+ let mut terms:Vec<String>=query.split(|c:char|!c.is_ascii_alphanumeric())
   .filter(|s|s.len()>2 && !STOP.contains(s)).map(str::to_string).collect();
+ terms.sort();terms.dedup();terms
+}
+pub fn relevant_to_topic(evidence:&[EvidenceText],topic:&str)->Vec<EvidenceText>{
+ let terms=topic_terms(topic);
  if terms.is_empty(){return evidence.to_vec();}
  evidence.iter().filter(|item|{
   let hay=item.text.to_ascii_lowercase();

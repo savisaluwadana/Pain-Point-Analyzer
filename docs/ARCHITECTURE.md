@@ -39,6 +39,8 @@ All API, persistence, background worker logic, and MCP protocol handling are in 
 
 Migrations in `db/` define users, Reddit OAuth credentials, opaque session hashes, per-user research data, background jobs, and revocable MCP API keys. Migration `007_archive_provider.sql` adds the shared archive request budget. `mcp_records` stores user-owned jobs, search memory, host annotations, synthesized runs and workspaces with optimistic concurrency control.
 
+Migration `008_evidence_associations.sql` tracks many-to-many evidence memberships across projects and research jobs. A source record is still deduplicated within one account; re-collecting it does not remove its earlier project or batch association. Research topic terms are applied inside the PostgreSQL query before the 1,000-row analysis cap. MCP research jobs do not expose live worker claim tokens in general list/detail responses.
+
 This is a **fresh PostgreSQL database**, not a historical data import. Deleting an account cascades through its records. Production deployments must also reconcile deleted Reddit content promptly and review backups/log retention.
 
 ## Multi-source collection and local login

@@ -344,6 +344,10 @@
             "type": "string"
           },
           "maxItems": 100
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -376,7 +380,8 @@
       "additionalProperties": false,
       "required": [
         "job_id",
-        "root_url"
+        "root_url",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -413,6 +418,10 @@
         },
         "stopped_reason": {
           "type": "string"
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -496,7 +505,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "job_id"
+        "job_id",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -537,6 +547,10 @@
               "maximum": 50
             }
           }
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -549,7 +563,8 @@
       "additionalProperties": false,
       "required": [
         "job_id",
-        "candidates"
+        "candidates",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -653,6 +668,10 @@
               }
             }
           }
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -664,7 +683,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "job_id"
+        "job_id",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -674,6 +694,10 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 30
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -686,7 +710,8 @@
       "additionalProperties": true,
       "required": [
         "job_id",
-        "url"
+        "url",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -870,6 +895,10 @@
         },
         "notes": {
           "type": "string"
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -897,7 +926,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "job_id"
+        "job_id",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -938,6 +968,10 @@
               "maximum": 50
             }
           }
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -1105,7 +1139,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "job_id"
+        "job_id",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -1116,6 +1151,10 @@
         },
         "model_label": {
           "type": "string"
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }
@@ -1144,7 +1183,8 @@
       "additionalProperties": false,
       "required": [
         "job_id",
-        "validations"
+        "validations",
+        "claim_token"
       ],
       "properties": {
         "job_id": {
@@ -1253,6 +1293,10 @@
         },
         "result_summary": {
           "type": "string"
+        },
+        "claim_token": {
+          "type": "string",
+          "description": "Active research job claim token returned by claim_research_job. Required for worker-owned mutations."
         }
       }
     }

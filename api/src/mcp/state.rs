@@ -57,6 +57,11 @@ pub async fn revoke_key(State(st):State<AppState>,headers:HeaderMap,Path(id):Pat
 }
 #[derive(Clone)]
 pub(crate) struct Record {pub value:Value,pub version:i64}
+pub(crate) fn public_job(value:&Value)->Value{
+ let mut copy=value.clone();
+ if let Some(map)=copy.as_object_mut(){map.remove("claim_token");}
+ copy
+}
 pub(crate) async fn read(st:&AppState,user:Uuid,kind:&str,id:&str)->ApiResult<Record>{
  let pair:Option<(Value,i64)>=sqlx::query_as("SELECT payload,version FROM mcp_records WHERE owner_id=$1 AND kind=$2 AND id=$3")
   .bind(user).bind(kind).bind(id).fetch_optional(&st.db).await.map_err(internal)?;

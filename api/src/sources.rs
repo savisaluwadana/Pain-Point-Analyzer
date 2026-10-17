@@ -1,6 +1,6 @@
 //! Read-only, bounded connectors for approved public sources.
 //! No arbitrary URL fetches: upstream hosts are fixed or explicitly allowlisted.
-use crate::{oauth,research::assert_project,AppState,ApiError,ApiResult,bad,internal};
+use crate::{oauth,research::{assert_project,link_project},AppState,ApiError,ApiResult,bad,internal};
 use axum::{extract::State,http::{HeaderMap,StatusCode},Json};
 use chrono::{DateTime,Utc};
 use reqwest::{Client,StatusCode as UpstreamStatus};
@@ -280,6 +280,9 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
     let q=req.query.as_deref().unwrap_or("").trim();
     let target=req.target.as_deref().unwrap_or("").trim();
     if q.len()>160||target.len()>220{return Err(bad("Search term or target is too long"));}
+    if req.batch_id.as_ref().is_some_and(|b|b.is_empty()||b.len()>120){
+        return Err(bad("batch_id must be 1–120 bytes"));
+    }
     if req.source!="youtube" && q.len()<2{return Err(bad("Enter a search term or topic tag"));}
     let limit=req.limit.unwrap_or(15).clamp(1,25);
     // Check all request-specific validation BEFORE charging a local API budget.
@@ -298,10 +301,15 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
             .or_else(||finding.metadata.get("repository")).and_then(Value::as_str).unwrap_or("");
         let meta=json!({"connector":req.source,"source_name":req.source,"community":community,
             "collected_via":"official-or-published-public-interface","details":finding.metadata});
-        sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=excluded.project_id,source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now()")
+        let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
             .bind(user).bind(req.project_id).bind(&req.source).bind(short(&finding.id,255))
             .bind(short(&finding.url,2048)).bind(short(&finding.title,500)).bind(short(&finding.body,1200))
-            .bind(finding.published).bind(meta).execute(&mut *tx).await.map_err(internal)?;
+            .bind(finding.published).bind(meta).fetch_one(&mut *tx).await.map_err(internal)?;
+        link_project(&mut tx,user,id,req.project_id).await?;
+        if let Some(batch)=req.batch_id.as_deref(){
+            sqlx::query("INSERT INTO evidence_batches(owner_id,evidence_id,batch_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING")
+              .bind(user).bind(id).bind(batch).execute(&mut *tx).await.map_err(internal)?;
+        }
         saved+=1;
     }
     tx.commit().await.map_err(internal)?;
