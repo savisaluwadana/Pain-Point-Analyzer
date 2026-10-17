@@ -280,6 +280,9 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
     let q=req.query.as_deref().unwrap_or("").trim();
     let target=req.target.as_deref().unwrap_or("").trim();
     if q.len()>160||target.len()>220{return Err(bad("Search term or target is too long"));}
+    if req.batch_id.as_ref().is_some_and(|b|b.is_empty()||b.len()>120){
+        return Err(bad("batch_id must be 1–120 bytes"));
+    }
     if req.source!="youtube" && q.len()<2{return Err(bad("Enter a search term or topic tag"));}
     let limit=req.limit.unwrap_or(15).clamp(1,25);
     // Check all request-specific validation BEFORE charging a local API budget.
@@ -303,6 +306,10 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
             .bind(short(&finding.url,2048)).bind(short(&finding.title,500)).bind(short(&finding.body,1200))
             .bind(finding.published).bind(meta).fetch_one(&mut *tx).await.map_err(internal)?;
         link_project(&mut tx,user,id,req.project_id).await?;
+        if let Some(batch)=req.batch_id.as_deref(){
+            sqlx::query("INSERT INTO evidence_batches(owner_id,evidence_id,batch_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING")
+              .bind(user).bind(id).bind(batch).execute(&mut *tx).await.map_err(internal)?;
+        }
         saved+=1;
     }
     tx.commit().await.map_err(internal)?;
