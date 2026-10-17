@@ -38,9 +38,9 @@ Do not commit a live host configuration or paste an API key into an issue. This 
 
 ## Tool workflow
 
-1. Check `platform_status`, then create and claim a research job with `create_research_job` and `claim_research_job`.
-2. Use `get_research_search_plan`. Collect Reddit archive evidence with `collect_reddit_archive`; for other permitted sources, a host can collect evidence and use `ingest_evidence`. Record progress with `record_research_search_progress`.
-3. Check `evaluate_research_evidence_quality`, then start semantic analysis with `start_job_semantic_analysis` and retrieve `get_llm_evidence_batch`.
+1. Check `platform_status`, then create and claim a research job with `create_research_job` and `claim_research_job`. Retain the returned `claim_token`; send it on each `heartbeat_research_job` call, and when requeuing or finishing an actively claimed job. Lost/expired claims must be reclaimed rather than renewed.
+2. Use `get_research_search_plan`. Collect Reddit archive evidence with `collect_reddit_archive` and `batch_id` set to the research `job_id`; for other permitted sources, a host can collect evidence and use `ingest_evidence`, again passing `batch_id: job_id`. This associates evidence with the correct job. Record progress with `record_research_search_progress`.
+3. Check `evaluate_research_evidence_quality` (counts only evidence explicitly linked to this job), then start semantic analysis with `start_job_semantic_analysis` and retrieve `get_llm_evidence_batch`.
 4. The host interprets the evidence and submits `submit_llm_annotations`. Retrieve `get_llm_synthesis_pack`, synthesize grounded clusters, then call `submit_llm_synthesis` and `get_research_quality_summary`.
 5. Optionally continue with `create_opportunity_workspace`, `create_validation_experiment`, `record_validation_result`, `submit_opportunity_strategy`, `submit_build_spec` and `submit_gtm_plan`.
 

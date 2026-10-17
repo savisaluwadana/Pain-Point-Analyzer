@@ -21,6 +21,7 @@ pub struct CollectInput {
     ranking:Option<String>,
     sample_size:Option<usize>,
     post_id:Option<String>,
+    batch_id:Option<String>,
 }
 #[derive(Clone,Debug)]
 struct Finding {
@@ -272,7 +273,7 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
     if req.source=="arctic-shift" {
         return Ok(Json(crate::archive::collect(&st,user,crate::archive::Request {
             subreddit:req.target.unwrap_or_default().trim().to_owned(),query:req.query,days:req.days,
-            limit:req.limit,sample_size:req.sample_size,ranking:req.ranking,post_id:req.post_id,project_id:req.project_id,
+            limit:req.limit,sample_size:req.sample_size,ranking:req.ranking,post_id:req.post_id,project_id:req.project_id,batch_id:req.batch_id,
         }).await?));
     }
     if !supported(&req.source){return Err(bad("Unsupported source"));}
@@ -310,6 +311,11 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
 #[cfg(test)]
 mod tests{
     use super::*;
+ #[test] fn permission_denials_are_not_rate_limits(){
+  assert_eq!(status_error(UpstreamStatus::FORBIDDEN,"github").0,StatusCode::FAILED_DEPENDENCY);
+  assert_eq!(status_error(UpstreamStatus::UNAUTHORIZED,"github").0,StatusCode::FAILED_DEPENDENCY);
+  assert_eq!(status_error(UpstreamStatus::TOO_MANY_REQUESTS,"github").0,StatusCode::TOO_MANY_REQUESTS);
+ }
     #[test] fn bluesky_skips_opted_out_authors_and_bad_record_keys(){
         let v=json!({"posts":[
             {"uri":"at://did:plc:abc/app.bsky.feed.post/3kabc","author":{"handle":"alice.bsky.social","labels":[]},

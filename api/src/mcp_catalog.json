@@ -2732,6 +2732,12 @@
         "project_id": {
           "type": "string",
           "format": "uuid"
+        },
+        "batch_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "description": "Optional research job ID to associate archive evidence with that job's quality and coverage metrics."
         }
       }
     }
