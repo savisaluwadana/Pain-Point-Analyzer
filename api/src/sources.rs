@@ -1,6 +1,6 @@
 //! Read-only, bounded connectors for approved public sources.
 //! No arbitrary URL fetches: upstream hosts are fixed or explicitly allowlisted.
-use crate::{oauth,research::assert_project,AppState,ApiError,ApiResult,bad,internal};
+use crate::{oauth,research::{assert_project,link_project},AppState,ApiError,ApiResult,bad,internal};
 use axum::{extract::State,http::{HeaderMap,StatusCode},Json};
 use chrono::{DateTime,Utc};
 use reqwest::{Client,StatusCode as UpstreamStatus};
@@ -298,10 +298,11 @@ pub async fn collect(State(st):State<AppState>,headers:HeaderMap,Json(req):Json<
             .or_else(||finding.metadata.get("repository")).and_then(Value::as_str).unwrap_or("");
         let meta=json!({"connector":req.source,"source_name":req.source,"community":community,
             "collected_via":"official-or-published-public-interface","details":finding.metadata});
-        sqlx::query("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=excluded.project_id,source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now()")
+        let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
             .bind(user).bind(req.project_id).bind(&req.source).bind(short(&finding.id,255))
             .bind(short(&finding.url,2048)).bind(short(&finding.title,500)).bind(short(&finding.body,1200))
-            .bind(finding.published).bind(meta).execute(&mut *tx).await.map_err(internal)?;
+            .bind(finding.published).bind(meta).fetch_one(&mut *tx).await.map_err(internal)?;
+        link_project(&mut tx,user,id,req.project_id).await?;
         saved+=1;
     }
     tx.commit().await.map_err(internal)?;
