@@ -1,7 +1,7 @@
 use crate::{AppState,ApiError,ApiResult,bad,internal,unauthorized};
 use axum::{extract::{Query,State},http::{header::{COOKIE,SET_COOKIE},HeaderMap,HeaderValue,StatusCode},response::{IntoResponse,Redirect,Response},Json};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD,Engine as _};
-use chacha20poly1305::{aead::{Aead,KeyInit,OsRng},ChaCha20Poly1305,Nonce};
+use chacha20poly1305::{aead::{Aead,AeadCore,KeyInit,OsRng},ChaCha20Poly1305,Nonce};
 use chrono::{DateTime,Utc};
 use rand::RngCore;
 use serde::{Deserialize,Serialize};
@@ -35,8 +35,8 @@ pub(crate) fn callback_cookie(state:&AppState,token:&str,secs:i64)->String {
 }
 pub(crate) fn encrypt(state:&AppState,plaintext:&str)->ApiResult<String>{
   let cipher=ChaCha20Poly1305::new_from_slice(&state.cfg.encryption_key).map_err(internal)?;
-  let mut nonce=[0u8;12];OsRng.fill_bytes(&mut nonce);
-  let ciphertext=cipher.encrypt(Nonce::from_slice(&nonce),plaintext.as_bytes()).map_err(internal)?;
+  let nonce=ChaCha20Poly1305::generate_nonce(&mut OsRng);
+  let ciphertext=cipher.encrypt(&nonce,plaintext.as_bytes()).map_err(internal)?;
   Ok(format!("{}:{}",URL_SAFE_NO_PAD.encode(nonce),URL_SAFE_NO_PAD.encode(ciphertext)))
 }
 fn decrypt(state:&AppState,data:&str)->ApiResult<String>{
@@ -199,6 +199,12 @@ mod tests {
    let enc=encrypt(&st,raw).unwrap();
    assert_ne!(enc,raw);
    assert_eq!(decrypt(&st,&enc).unwrap(),raw);
+   // Each encryption must use a distinct nonce, including for identical plaintext.
+   let second=encrypt(&st,raw).unwrap();
+   let (first_nonce,_)=enc.split_once(':').unwrap();
+   let (second_nonce,_)=second.split_once(':').unwrap();
+   assert_ne!(first_nonce,second_nonce);
+   assert_eq!(decrypt(&st,&second).unwrap(),raw);
    assert!(decrypt(&st,"invalid").is_err());
  }
  #[test]
