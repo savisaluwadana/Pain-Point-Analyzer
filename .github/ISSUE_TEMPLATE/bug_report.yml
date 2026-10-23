@@ -1,6 +1,6 @@
 name: Bug report
 description: Report a reproducible error (no credentials or private source text)
-title: "[Bug] "
+title: '[Bug] '
 body:
   - type: markdown
     attributes:

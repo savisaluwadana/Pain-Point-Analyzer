@@ -1,6 +1,6 @@
 name: Alpha tester feedback
 description: Tell us whether the first-run demo worked and what was confusing
-title: "[Alpha feedback] "
+title: '[Alpha feedback] '
 body:
   - type: markdown
     attributes:

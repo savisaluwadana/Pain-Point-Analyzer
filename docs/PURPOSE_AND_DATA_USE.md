@@ -2,11 +2,17 @@
 
 ## Community-driven open-source project discovery
 
-Open Source Discovery Lab is designed to help an individual developer discover recurring challenges, gaps, accessibility needs, and requests described by people in public online communities. The research is intended to inspire ideas for useful software that could be developed and shared as open-source projects.
+Open Source Discovery Lab is designed to help an individual developer discover recurring challenges, gaps, accessibility
+needs, and requests described by people in public online communities. The research is intended to inspire ideas for
+useful software that could be developed and shared as open-source projects.
 
-The current planned operation is **local, individual, and non-commercial**. This describes the operator's present intended use, not a claim that Reddit has approved API access. The application's original source code is distributed under the [MIT License](../LICENSE); that software license does not authorize access to, redistribution of, or commercial use of Reddit content.
+The current planned operation is **local, individual, and non-commercial**. This describes the operator's present
+intended use, not a claim that Reddit has approved API access. The application's original source code is distributed
+under the [MIT License](../LICENSE); that software license does not authorize access to, redistribution of, or
+commercial use of Reddit content.
 
 Examples include:
+
 - Finding repeated difficulties with interoperability and exploring a community-maintained integration.
 - Understanding accessibility-related software needs and exploring a freely available tool.
 - Identifying documentation or workflow barriers that could be addressed through an open-source utility.
@@ -17,37 +23,53 @@ These are possible outcomes, not promises of a particular project or evidence th
 ## Intended Reddit Data API behavior
 
 If separately approved, the standalone application would:
+
 1. Use a Reddit OAuth app requesting `identity` and `read` permissions.
 2. Read a bounded sample of public posts from selected communities and explicitly requested thread comments.
 3. Store local, short-lived evidence with timestamps, source URLs and relevant discussion metadata.
 4. Group related observations through deterministic theme scoring and optional research-host-assisted interpretation.
 5. Use the findings to consider open-source contributions, checking original sources and existing solutions.
 
-The direct OAuth collector currently uses selected subreddit top posts for the past month; it does not autonomously perform site-wide search. In the dashboard a scan requests 25 posts. The application is not an embedded Reddit or Devvit app. It requires external local PostgreSQL storage, an independent dashboard, and optional MCP integration for a user-controlled research host.
+The direct OAuth collector currently uses selected subreddit top posts for the past month; it does not autonomously
+perform site-wide search. In the dashboard a scan requests 25 posts. The application is not an embedded Reddit or Devvit
+app. It requires external local PostgreSQL storage, an independent dashboard, and optional MCP integration for a
+user-controlled research host.
 
 ## Conduct and data practices
 
 - Read-only access. No posting, voting, direct messaging, moderation actions or engagement automation.
-- No browser-session impersonation, unauthorized collection, internal Reddit GraphQL endpoint access, or bypass of controls.
-- Configured conservative request limits and provider backoff; Reddit's actual permissions, quotas and policies take precedence.
-- Default deletion of locally stored Reddit evidence after seven days and connected-source evidence after seven days (configurable 1–30), plus account and individual evidence deletion. OAuth disconnect removes direct-connector data; independently collected archive evidence remains subject to retention or explicit deletion.
+- No browser-session impersonation, unauthorized collection, internal Reddit GraphQL endpoint access, or bypass of
+  controls.
+- Configured conservative request limits and provider backoff; Reddit's actual permissions, quotas and policies take
+  precedence.
+- Default deletion of locally stored Reddit evidence after seven days and connected-source evidence after seven days
+  (configurable 1–30), plus account and individual evidence deletion. OAuth disconnect removes direct-connector data;
+  independently collected archive evidence remains subject to retention or explicit deletion.
 - No sale or redistribution of Reddit discussions as a dataset; no training of AI models on Reddit content.
 - Source material is treated as untrusted input; individual Redditors are not profiled for outreach.
-- Publicly visible source code and community discussion **do not** imply authorization to collect or reuse Reddit content.
-- Any change in scope, including paid services, commercial use of Reddit-derived analysis, or broader deployment, requires a new rights and policy review, and any separately required permission.
+- Publicly visible source code and community discussion **do not** imply authorization to collect or reuse Reddit
+  content.
+- Any change in scope, including paid services, commercial use of Reddit-derived analysis, or broader deployment,
+  requires a new rights and policy review, and any separately required permission.
 
 ## What the implementation does not currently guarantee
 
 - Approved or tested live Reddit Data API access; Reddit may refuse access or change available interfaces.
 - Internet-facing multi-user authentication; the new local access-token login is deliberately limited to localhost.
-- Fully automated external website scraping. MCP tools coordinate a **connected host** that must independently respect source permissions.
+- Fully automated external website scraping. MCP tools coordinate a **connected host** that must independently respect
+  source permissions.
 - Complete reconstruction of all historical context or exact compatibility with previous MCP tool outputs.
-- Any authorization to use Reddit or other third-party material beyond its separate terms; MIT licenses the project's code, not third-party content.
+- Any authorization to use Reddit or other third-party material beyond its separate terms; MIT licenses the project's
+  code, not third-party content.
 
-The research engine retains optional general-purpose validation, planning and market-comparison capabilities from an earlier iteration. **They are not the reason for the requested non-commercial Reddit access and must not be treated as permission for commercial use of the resulting Reddit data.**
+The research engine retains optional general-purpose validation, planning and market-comparison capabilities from an
+earlier iteration. **They are not the reason for the requested non-commercial Reddit access and must not be treated as
+permission for commercial use of the resulting Reddit data.**
 
 See [Architecture](ARCHITECTURE.md) and [MCP](MCP.md).
 
 ## Third-party archive pilot
 
-The Arctic Shift connector separately supports bounded archive collection without Reddit OAuth. The OAuth behavior above applies to the direct Reddit connector. Archive availability does not grant rights to the underlying content; all data-use constraints remain applicable. See [archive sampling, provenance, retention and limitations](ARCTIC_SHIFT.md).
+The Arctic Shift connector separately supports bounded archive collection without Reddit OAuth. The OAuth behavior above
+applies to the direct Reddit connector. Archive availability does not grant rights to the underlying content; all
+data-use constraints remain applicable. See [archive sampling, provenance, retention and limitations](ARCTIC_SHIFT.md).
