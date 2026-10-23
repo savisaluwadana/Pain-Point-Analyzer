@@ -32,9 +32,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "items"
-      ],
+      "required": ["items"],
       "properties": {
         "batch_id": {
           "type": "string",
@@ -47,9 +45,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "text"
-            ],
+            "required": ["text"],
             "properties": {
               "external_id": {
                 "type": "string",
@@ -242,9 +238,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -258,9 +252,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -271,9 +263,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "query"
-            ],
+            "required": ["query"],
             "properties": {
               "mission_id": {
                 "type": "string"
@@ -304,9 +294,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "url"
-            ],
+            "required": ["url"],
             "properties": {
               "url": {
                 "type": "string"
@@ -358,9 +346,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "url"
-      ],
+      "required": ["url"],
       "properties": {
         "url": {
           "type": "string"
@@ -378,11 +364,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "root_url",
-        "claim_token"
-      ],
+      "required": ["job_id", "root_url", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -432,9 +414,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -448,9 +428,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -464,9 +442,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -504,10 +480,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "claim_token"
-      ],
+      "required": ["job_id", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -561,11 +534,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "candidates",
-        "claim_token"
-      ],
+      "required": ["job_id", "candidates", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -583,9 +552,7 @@
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": [
-              "url"
-            ],
+            "required": ["url"],
             "properties": {
               "url": {
                 "type": "string"
@@ -682,10 +649,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "claim_token"
-      ],
+      "required": ["job_id", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -708,11 +672,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "job_id",
-        "url",
-        "claim_token"
-      ],
+      "required": ["job_id", "url", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -807,9 +767,7 @@
           "items": {
             "type": "object",
             "additionalProperties": true,
-            "required": [
-              "url"
-            ],
+            "required": ["url"],
             "properties": {
               "url": {
                 "type": "string"
@@ -909,9 +867,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -925,10 +881,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "claim_token"
-      ],
+      "required": ["job_id", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -982,9 +935,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "topic"
-      ],
+      "required": ["topic"],
       "properties": {
         "name": {
           "type": "string"
@@ -1063,9 +1014,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1079,10 +1028,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "claim_token"
-      ],
+      "required": ["job_id", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1092,13 +1038,7 @@
         },
         "status": {
           "type": "string",
-          "enum": [
-            "claimed",
-            "collecting",
-            "gap-research",
-            "semantic-analysis",
-            "opportunity-validation"
-          ]
+          "enum": ["claimed", "collecting", "gap-research", "semantic-analysis", "opportunity-validation"]
         },
         "lease_minutes": {
           "type": "integer",
@@ -1118,9 +1058,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1138,10 +1076,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "claim_token"
-      ],
+      "required": ["job_id", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1165,9 +1100,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1181,11 +1114,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "validations",
-        "claim_token"
-      ],
+      "required": ["job_id", "validations", "claim_token"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1197,23 +1126,14 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "opportunity_id",
-              "verdict",
-              "validation_score"
-            ],
+            "required": ["opportunity_id", "verdict", "validation_score"],
             "properties": {
               "opportunity_id": {
                 "type": "string"
               },
               "verdict": {
                 "type": "string",
-                "enum": [
-                  "reject",
-                  "watch",
-                  "validate",
-                  "build"
-                ]
+                "enum": ["reject", "watch", "validate", "build"]
               },
               "validation_score": {
                 "type": "number",
@@ -1254,9 +1174,7 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "name"
-                  ],
+                  "required": ["name"],
                   "properties": {
                     "name": {
                       "type": "string"
@@ -1307,9 +1225,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id"
-      ],
+      "required": ["job_id"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1327,10 +1243,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "job_id",
-        "reason"
-      ],
+      "required": ["job_id", "reason"],
       "properties": {
         "job_id": {
           "type": "string"
@@ -1351,9 +1264,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "properties": {
         "name": {
           "type": "string"
@@ -1383,9 +1294,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1405,10 +1314,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id",
-        "annotations"
-      ],
+      "required": ["run_id", "annotations"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1420,12 +1326,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "evidence_id",
-              "canonical_pain",
-              "semantic_cluster_key",
-              "semantic_cluster_label"
-            ],
+            "required": ["evidence_id", "canonical_pain", "semantic_cluster_key", "semantic_cluster_label"],
             "properties": {
               "evidence_id": {
                 "type": "string"
@@ -1468,9 +1369,7 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "name"
-                  ],
+                  "required": ["name"],
                   "properties": {
                     "name": {
                       "type": "string"
@@ -1492,21 +1391,11 @@
               },
               "purchase_intent": {
                 "type": "string",
-                "enum": [
-                  "none",
-                  "weak",
-                  "medium",
-                  "strong"
-                ]
+                "enum": ["none", "weak", "medium", "strong"]
               },
               "urgency": {
                 "type": "string",
-                "enum": [
-                  "low",
-                  "medium",
-                  "high",
-                  "critical"
-                ]
+                "enum": ["low", "medium", "high", "critical"]
               },
               "semantic_cluster_key": {
                 "type": "string",
@@ -1541,9 +1430,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1557,10 +1444,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id",
-        "clusters"
-      ],
+      "required": ["run_id", "clusters"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1572,12 +1456,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "cluster_id",
-              "label",
-              "problem_statement",
-              "evidence_ids"
-            ],
+            "required": ["cluster_id", "label", "problem_statement", "evidence_ids"],
             "properties": {
               "cluster_id": {
                 "type": "string"
@@ -1626,9 +1505,7 @@
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "name"
-                  ],
+                  "required": ["name"],
                   "properties": {
                     "name": {
                       "type": "string"
@@ -1716,14 +1593,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "opportunity_id",
-              "title",
-              "problem",
-              "evidence_ids",
-              "cluster_ids",
-              "opportunity_score"
-            ],
+            "required": ["opportunity_id", "title", "problem", "evidence_ids", "cluster_ids", "opportunity_score"],
             "properties": {
               "opportunity_id": {
                 "type": "string"
@@ -1855,9 +1725,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1871,9 +1739,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1887,9 +1753,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1903,9 +1767,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1919,9 +1781,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1938,10 +1798,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id",
-        "assessments"
-      ],
+      "required": ["run_id", "assessments"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -1953,9 +1810,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "cluster_id"
-            ],
+            "required": ["cluster_id"],
             "properties": {
               "cluster_id": {
                 "type": "string"
@@ -2010,9 +1865,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id"
-      ],
+      "required": ["run_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -2029,11 +1882,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id",
-        "opportunity_id",
-        "sources"
-      ],
+      "required": ["run_id", "opportunity_id", "sources"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -2056,10 +1905,7 @@
         "target_population": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "low",
-            "high"
-          ],
+          "required": ["low", "high"],
           "properties": {
             "low": {
               "type": "number",
@@ -2074,10 +1920,7 @@
         "annual_spend_per_customer": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "low",
-            "high"
-          ],
+          "required": ["low", "high"],
           "properties": {
             "low": {
               "type": "number",
@@ -2092,10 +1935,7 @@
         "serviceable_share_pct": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "low",
-            "high"
-          ],
+          "required": ["low", "high"],
           "properties": {
             "low": {
               "type": "number",
@@ -2112,10 +1952,7 @@
         "obtainable_share_pct": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "low",
-            "high"
-          ],
+          "required": ["low", "high"],
           "properties": {
             "low": {
               "type": "number",
@@ -2143,10 +1980,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "url",
-              "label"
-            ],
+            "required": ["url", "label"],
             "properties": {
               "url": {
                 "type": "string"
@@ -2176,10 +2010,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "run_id",
-        "opportunity_id"
-      ],
+      "required": ["run_id", "opportunity_id"],
       "properties": {
         "run_id": {
           "type": "string"
@@ -2214,9 +2045,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id"
-      ],
+      "required": ["workspace_id"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2230,9 +2059,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id"
-      ],
+      "required": ["workspace_id"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2309,9 +2136,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id"
-      ],
+      "required": ["workspace_id"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2365,10 +2190,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id",
-        "type"
-      ],
+      "required": ["workspace_id", "type"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2415,11 +2237,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id",
-        "experiment_id",
-        "verdict"
-      ],
+      "required": ["workspace_id", "experiment_id", "verdict"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2429,21 +2247,11 @@
         },
         "status": {
           "type": "string",
-          "enum": [
-            "planned",
-            "running",
-            "complete",
-            "failed"
-          ]
+          "enum": ["planned", "running", "complete", "failed"]
         },
         "verdict": {
           "type": "string",
-          "enum": [
-            "supports",
-            "mixed",
-            "refutes",
-            "inconclusive"
-          ]
+          "enum": ["supports", "mixed", "refutes", "inconclusive"]
         },
         "result": {
           "type": "object",
@@ -2512,9 +2320,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id"
-      ],
+      "required": ["workspace_id"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2528,11 +2334,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id",
-        "product_name",
-        "one_liner"
-      ],
+      "required": ["workspace_id", "product_name", "one_liner"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2627,9 +2429,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id"
-      ],
+      "required": ["workspace_id"],
       "properties": {
         "workspace_id": {
           "type": "string"
@@ -2700,25 +2500,14 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "workspace_id",
-        "stage"
-      ],
+      "required": ["workspace_id", "stage"],
       "properties": {
         "workspace_id": {
           "type": "string"
         },
         "stage": {
           "type": "string",
-          "enum": [
-            "research",
-            "validation",
-            "specification",
-            "gtm",
-            "building",
-            "watch",
-            "stopped"
-          ]
+          "enum": ["research", "validation", "specification", "gtm", "building", "watch", "stopped"]
         }
       }
     }
@@ -2729,9 +2518,7 @@
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "subreddit"
-      ],
+      "required": ["subreddit"],
       "properties": {
         "subreddit": {
           "type": "string",
@@ -2762,11 +2549,7 @@
         },
         "ranking": {
           "type": "string",
-          "enum": [
-            "top",
-            "mid",
-            "new"
-          ],
+          "enum": ["top", "mid", "new"],
           "default": "top"
         },
         "post_id": {

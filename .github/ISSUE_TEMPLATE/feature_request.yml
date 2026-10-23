@@ -1,6 +1,6 @@
 name: Feature or contribution idea
 description: Suggest a focused improvement for the open-source research workflow
-title: "[Idea] "
+title: '[Idea] '
 body:
   - type: textarea
     id: problem
