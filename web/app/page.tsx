@@ -1048,9 +1048,9 @@ export default function Home() {
             <div className="subpanel">
               <h3>Disconnect Reddit</h3>
               <p>
-                Revoke this app's Reddit OAuth token, stop pending Reddit collections and delete stored Reddit posts and
-                comments. Other projects, research summaries and MCP keys remain. To erase those too, delete the
-                account.
+                Revoke this app&apos;s Reddit OAuth token, stop pending Reddit collections and delete stored Reddit
+                posts and comments. Other projects, research summaries and MCP keys remain. To erase those too, delete
+                the account.
               </p>
               <button
                 className="secondary"
@@ -1070,8 +1070,8 @@ export default function Home() {
               <h3>Delete account and all stored data</h3>
               <p>
                 Delete this account, sessions, projects, evidence, research reports, opportunity workspaces and API
-                keys. The service also attempts to revoke Reddit's token before deletion. If that fails, revoke the app
-                manually in Reddit account settings.
+                keys. The service also attempts to revoke Reddit&apos;s token before deletion. If that fails, revoke the
+                app manually in Reddit account settings.
               </p>
               <button
                 className="secondary"
