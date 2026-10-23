@@ -147,7 +147,14 @@ pub fn analyze(evidence: &[EvidenceText]) -> Report {
         })
         .collect();
     clusters.sort_by(|a, b| b.severity_score.total_cmp(&a.severity_score));
-    Report{evidence_scanned:evidence.len(),independent_stories:unique.len(),clusters,caveat:"Heuristic triage only. Scores are not buying intent, market size or proof of demand; verify independent sources and contradictory evidence.".into()}
+    Report {
+        evidence_scanned: evidence.len(),
+        independent_stories: unique.len(),
+        clusters,
+        caveat: "Heuristic triage only. Scores are not buying intent, market size or proof of demand; verify \
+            independent sources and contradictory evidence."
+            .into(),
+    }
 }
 // Keyword matching is a conservative relevance gate, not semantic classification.
 pub fn topic_terms(topic: &str) -> Vec<String> {
@@ -279,7 +286,8 @@ mod tests {
     }
     #[test]
     fn cross_source_copies_of_long_evidence_are_one_story() {
-        let copy="A public discussion describes manual reporting that takes multiple hours every week, and asks for a safe way to automate the workflow without copying everything by hand.";
+        let copy = "A public discussion describes manual reporting that takes multiple hours every week, and asks \
+            for a safe way to automate the workflow without copying everything by hand.";
         let items = ["github", "forum"]
             .iter()
             .map(|source| EvidenceText {

@@ -30,7 +30,14 @@ pub struct JobRow {
 }
 pub async fn list(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<Json<Vec<JobRow>>> {
     let uid = oauth::user_id(&st, &headers).await?;
-    let rows=sqlx::query_as("SELECT id,subreddit,status,attempts,last_error,created_at FROM research_jobs WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 100").bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+    let rows = sqlx::query_as(
+        "SELECT id,subreddit,status,attempts,last_error,created_at FROM research_jobs WHERE owner_id=$1 ORDER BY \
+            created_at DESC LIMIT 100",
+    )
+    .bind(uid)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
     Ok(Json(rows))
 }
 pub async fn create(
@@ -68,7 +75,10 @@ pub async fn create(
             .fetch_one(&st.db)
             .await
             .map_err(internal)?;
-    Ok(Json(json!({"job_id":id,"status":"queued"})))
+    Ok(Json(json!({
+        "job_id": id,
+        "status": "queued",
+    })))
 }
 pub async fn worker(st: AppState) {
     loop {
@@ -90,9 +100,15 @@ fn retryable_reddit_error(error: &crate::ApiError) -> bool {
     )
 }
 async fn work_once(st: &AppState) -> ApiResult<()> {
-    let item:Option<(Uuid,Uuid,String,Option<Uuid>,Uuid)>=sqlx::query_as(
-  "UPDATE research_jobs SET status='running',lease_token=gen_random_uuid(),lease_expires_at=now()+interval '2 minutes',attempts=attempts+1 WHERE id=(SELECT id FROM research_jobs WHERE (status='queued' AND next_attempt_at<=now()) OR (status='running' AND lease_expires_at<now() AND attempts<3) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id,owner_id,subreddit,project_id,lease_token")
-   .fetch_optional(&st.db).await.map_err(internal)?;
+    let item: Option<(Uuid, Uuid, String, Option<Uuid>, Uuid)> = sqlx::query_as(
+        "UPDATE research_jobs SET status='running',lease_token=gen_random_uuid(),lease_expires_at=now()+interval '2 \
+            minutes',attempts=attempts+1 WHERE id=(SELECT id FROM research_jobs WHERE (status='queued' AND \
+            next_attempt_at<=now()) OR (status='running' AND lease_expires_at<now() AND attempts<3) ORDER BY \
+            created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING id,owner_id,subreddit,project_id,lease_token",
+    )
+    .fetch_optional(&st.db)
+    .await
+    .map_err(internal)?;
     let Some((id, uid, sub, project, lease)) = item else {
         return Ok(());
     };
@@ -103,12 +119,32 @@ async fn work_once(st: &AppState) -> ApiResult<()> {
     .await;
     match outcome {
         Ok(_) => {
-            sqlx::query("UPDATE research_jobs SET status='complete',lease_token=NULL,lease_expires_at=NULL,finished_at=now() WHERE id=$1 AND lease_token=$2").bind(id).bind(lease).execute(&st.db).await.map_err(internal)?;
+            sqlx::query(
+                "UPDATE research_jobs SET status='complete',lease_token=NULL,lease_expires_at=NULL,\
+                    finished_at=now() WHERE id=$1 AND lease_token=$2",
+            )
+            .bind(id)
+            .bind(lease)
+            .execute(&st.db)
+            .await
+            .map_err(internal)?;
         }
         Err(error) => {
             let retryable = retryable_reddit_error(&error);
-            sqlx::query("UPDATE research_jobs SET status=CASE WHEN attempts>=3 OR NOT $5 THEN 'failed' ELSE 'queued' END,lease_token=NULL,lease_expires_at=NULL,last_error=$3,next_attempt_at=now() + (CASE WHEN $4 THEN interval '15 minutes' ELSE (attempts * interval '1 minute') END),finished_at=CASE WHEN attempts>=3 OR NOT $5 THEN now() ELSE NULL END WHERE id=$1 AND lease_token=$2")
-       .bind(id).bind(lease).bind(error.1).bind(error.0==StatusCode::TOO_MANY_REQUESTS).bind(retryable).execute(&st.db).await.map_err(internal)?;
+            sqlx::query(
+                "UPDATE research_jobs SET status=CASE WHEN attempts>=3 OR NOT $5 THEN 'failed' ELSE 'queued' END,\
+                    lease_token=NULL,lease_expires_at=NULL,last_error=$3,next_attempt_at=now() + (CASE WHEN $4 THEN \
+                    interval '15 minutes' ELSE (attempts * interval '1 minute') END),finished_at=CASE WHEN \
+                    attempts>=3 OR NOT $5 THEN now() ELSE NULL END WHERE id=$1 AND lease_token=$2",
+            )
+            .bind(id)
+            .bind(lease)
+            .bind(error.1)
+            .bind(error.0 == StatusCode::TOO_MANY_REQUESTS)
+            .bind(retryable)
+            .execute(&st.db)
+            .await
+            .map_err(internal)?;
         }
     }
     Ok(())
@@ -121,21 +157,42 @@ pub async fn cleanup(st: AppState) {
         .unwrap_or(7)
         .clamp(1, 30);
     loop {
-        if let Err(err)=sqlx::query("DELETE FROM evidence WHERE source_kind IN ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') AND collected_at < now() - ($1 * interval '1 day')").bind(days).execute(&st.db).await{
-     tracing::error!(error=%err,"retention cleanup failed");
-   }
+        if let Err(err) = sqlx::query(
+            "DELETE FROM evidence WHERE source_kind IN ('reddit','reddit-comment','reddit-archive',\
+                'reddit-archive-comment') AND collected_at < now() - ($1 * interval '1 day')",
+        )
+        .bind(days)
+        .execute(&st.db)
+        .await
+        {
+            tracing::error!(error=%err,"retention cleanup failed");
+        }
         let days: i32 = std::env::var("SOURCE_RETENTION_DAYS")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(7)
             .clamp(1, 30);
-        if let Err(err)=sqlx::query("DELETE FROM evidence WHERE source_kind IN ('github','hackernews','stackoverflow','bluesky','youtube','discourse','medium') AND collected_at < now() - ($1 * interval '1 day')")
-     .bind(days).execute(&st.db).await {tracing::error!(error=%err,"source evidence cleanup failed");}
+        if let Err(err) = sqlx::query(
+            "DELETE FROM evidence WHERE source_kind IN ('github','hackernews','stackoverflow','bluesky','youtube',\
+                'discourse','medium') AND collected_at < now() - ($1 * interval '1 day')",
+        )
+        .bind(days)
+        .execute(&st.db)
+        .await
+        {
+            tracing::error!(error=%err,"source evidence cleanup failed");
+        }
         let _ = sqlx::query("DELETE FROM user_sessions WHERE expires_at<now()")
             .execute(&st.db)
             .await;
         // A worker killed during its final lease must not leave the job stuck forever.
-        let _=sqlx::query("UPDATE research_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL,finished_at=now(),last_error=COALESCE(last_error,'Worker lease expired after final retry') WHERE status='running' AND lease_expires_at<now() AND attempts>=3").execute(&st.db).await;
+        let _ = sqlx::query(
+            "UPDATE research_jobs SET status='failed',lease_token=NULL,lease_expires_at=NULL,finished_at=now(),\
+                last_error=COALESCE(last_error,'Worker lease expired after final retry') WHERE status='running' AND \
+                lease_expires_at<now() AND attempts>=3",
+        )
+        .execute(&st.db)
+        .await;
         sleep(Duration::from_secs(3600)).await;
     }
 }

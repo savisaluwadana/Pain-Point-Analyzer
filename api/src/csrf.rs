@@ -49,6 +49,7 @@ pub(crate) async fn require_same_origin(
 }
 #[cfg(test)]
 mod tests {
+    // Unwraps in these fixture tests are assertions: a failure must fail the test.
     use super::*;
     #[test]
     fn blocks_cross_site_and_missing_origin_for_cookie_mutations() {

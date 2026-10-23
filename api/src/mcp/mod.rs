@@ -2,14 +2,15 @@ mod advanced;
 mod evidence;
 pub mod state;
 mod workflows;
-use crate::{ApiError, ApiResult, AppState};
+use crate::{ApiResult, AppState};
 use axum::{extract::State, http::HeaderMap, Json};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::env;
 use tokio::io::{self, AsyncBufReadExt, AsyncWriteExt};
 
 fn catalog() -> Vec<Value> {
+    // Embedded repository data, never user/network input; CI validates this catalog.
     serde_json::from_str(include_str!("../mcp_catalog.json")).expect("validated MCP schema catalog")
 }
 #[derive(Deserialize)]
@@ -77,45 +78,89 @@ pub async fn stdio() -> anyhow::Result<()> {
         let method = incoming["method"].as_str().unwrap_or_default();
         let params = &incoming["params"];
         let reply = match method {
-            "initialize" => {
-                json!({"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"pain-intelligence-rust","version":"2.0.0"}})
-            }
+            "initialize" => json!({
+                "protocolVersion": "2025-11-25",
+                "capabilities": {
+                    "tools": {
+                        "listChanged": false,
+                    },
+                },
+                "serverInfo": {
+                    "name": "pain-intelligence-rust",
+                    "version": "2.0.0",
+                },
+            }),
             "ping" => json!({}),
-            "tools/list" => json!({"tools":catalog()}),
+            "tools/list" => json!({
+                "tools": catalog(),
+            }),
             "tools/call" => {
                 let name = params["name"].as_str().unwrap_or("");
                 let arguments = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
                 let response = http
                     .post(&url)
                     .bearer_auth(&key)
-                    .json(&json!({"name":name,"arguments":arguments}))
+                    .json(&json!({
+                        "name": name,
+                        "arguments": arguments,
+                    }))
                     .send()
                     .await;
                 match response {
                     Ok(res) => {
                         let status = res.status();
-                        let body: Value = res
-                            .json()
-                            .await
-                            .unwrap_or_else(|_| json!({"error":"Invalid server response"}));
+                        let body: Value = res.json().await.unwrap_or_else(|_| {
+                            json!({
+                                "error": "Invalid server response",
+                            })
+                        });
                         if status.is_success() {
-                            json!({"content":[{"type":"text","text":serde_json::to_string_pretty(&body).unwrap_or_default()}],"structuredContent":body,"isError":false})
+                            json!({
+                                "content": [{
+                                    "type": "text",
+                                    "text": serde_json::to_string_pretty(&body).unwrap_or_default(),
+                                }],
+                                "structuredContent": body,
+                                "isError": false,
+                            })
                         } else {
                             let msg = body["error"].as_str().unwrap_or("Tool failed");
-                            json!({"content":[{"type":"text","text":msg}],"isError":true})
+                            json!({
+                                "content": [{
+                                    "type": "text",
+                                    "text": msg,
+                                }],
+                                "isError": true,
+                            })
                         }
                     }
                     Err(error) => {
                         tracing::error!(%error,"MCP host could not reach Rust API");
-                        json!({"content":[{"type":"text","text":"Rust API unavailable"}],"isError":true})
+                        json!({
+                            "content": [{
+                                "type": "text",
+                                "text": "Rust API unavailable",
+                            }],
+                            "isError": true,
+                        })
                     }
                 }
             }
-            "resources/list" => json!({"resources":[]}),
-            "prompts/list" => json!({"prompts":[]}),
-            _ => json!({"content":[{"type":"text","text":format!("Unsupported method: {method}")}],"isError":true}),
+            "resources/list" => json!({ "resources": [] }),
+            "prompts/list" => json!({ "prompts": [] }),
+            _ => json!({
+                "content": [{
+                    "type": "text",
+                    "text": format!("Unsupported method: {method}"),
+                }],
+                "isError": true,
+            }),
         };
-        let envelope = json!({"jsonrpc":"2.0","id":id,"result":reply});
+        let envelope = json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": reply,
+        });
         stdout.write_all(serde_json::to_string(&envelope)?.as_bytes()).await?;
         stdout.write_all(b"\n").await?;
         stdout.flush().await?;

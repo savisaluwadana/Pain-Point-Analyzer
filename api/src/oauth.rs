@@ -15,7 +15,7 @@ use chacha20poly1305::{
 };
 use chrono::{DateTime, Utc};
 use rand::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::types::Uuid;
@@ -37,11 +37,6 @@ struct TokenResponse {
 struct RedditMe {
     id: String,
     name: String,
-}
-#[derive(Serialize)]
-struct SessionInfo {
-    id: Uuid,
-    reddit_username: String,
 }
 fn random_token() -> String {
     let mut bytes = [0u8; 32];
@@ -177,12 +172,32 @@ pub async fn callback(
     }
     let profile: RedditMe = me.json().await.map_err(internal)?;
     let mut tx = st.db.begin().await.map_err(internal)?;
-    let user_id:Uuid=sqlx::query_scalar("INSERT INTO users(reddit_id,reddit_username) VALUES($1,$2) ON CONFLICT(reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id")
-    .bind(&profile.id).bind(&profile.name).fetch_one(&mut *tx).await.map_err(internal)?;
+    let user_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO users(reddit_id,reddit_username) VALUES($1,$2) ON CONFLICT(reddit_id) DO UPDATE SET \
+            reddit_username=excluded.reddit_username RETURNING id",
+    )
+    .bind(&profile.id)
+    .bind(&profile.name)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(internal)?;
     let access = encrypt(&st, &token.access_token)?;
     let refresh = token.refresh_token.as_ref().map(|x| encrypt(&st, x)).transpose()?;
-    sqlx::query("INSERT INTO reddit_credentials(user_id,access_token_ciphertext,refresh_token_ciphertext,expires_at) VALUES($1,$2,$3,now()+($4 * interval '1 second')) ON CONFLICT(user_id) DO UPDATE SET access_token_ciphertext=excluded.access_token_ciphertext,refresh_token_ciphertext=coalesce(excluded.refresh_token_ciphertext,reddit_credentials.refresh_token_ciphertext),expires_at=excluded.expires_at,updated_at=now()")
-    .bind(user_id).bind(&access).bind(&refresh).bind(token.expires_in.max(1)).execute(&mut *tx).await.map_err(internal)?;
+    sqlx::query(
+        "INSERT INTO reddit_credentials(user_id,access_token_ciphertext,refresh_token_ciphertext,expires_at) \
+            VALUES($1,$2,$3,now()+($4 * interval '1 second')) ON CONFLICT(user_id) DO UPDATE SET \
+            access_token_ciphertext=excluded.access_token_ciphertext,\
+            refresh_token_ciphertext=coalesce(excluded.refresh_token_ciphertext,\
+            reddit_credentials.refresh_token_ciphertext),expires_at=excluded.expires_at,updated_at=now()",
+    )
+    .bind(user_id)
+    .bind(&access)
+    .bind(&refresh)
+    .bind(token.expires_in.max(1))
+    .execute(&mut *tx)
+    .await
+    .map_err(internal)?;
+
     let session = random_token();
     sqlx::query("INSERT INTO user_sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '7 days')")
         .bind(hash(&session))
@@ -224,9 +239,12 @@ pub async fn me(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<Jso
         .fetch_one(&st.db)
         .await
         .map_err(internal)?;
-    Ok(Json(
-        json!({"id":id,"reddit_username":name,"reddit_connected":reddit_connected,"local_account":account_kind=="local-only"}),
-    ))
+    Ok(Json(json!({
+        "id": id,
+        "reddit_username": name,
+        "reddit_connected": reddit_connected,
+        "local_account": account_kind == "local-only",
+    })))
 }
 pub async fn logout(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {
     if let Some(session) = cookie_value(&headers, "pil_session") {
@@ -236,7 +254,10 @@ pub async fn logout(State(st): State<AppState>, headers: HeaderMap) -> ApiResult
             .await
             .map_err(internal)?;
     }
-    let mut resp = Json(json!({"ok":true})).into_response();
+    let mut resp = Json(json!({
+        "ok": true,
+    }))
+    .into_response();
     resp.headers_mut().append(
         SET_COOKIE,
         HeaderValue::from_str(&callback_cookie(&st, "", 0)).map_err(internal)?,
@@ -311,10 +332,12 @@ pub async fn disconnect(State(st): State<AppState>, headers: HeaderMap) -> ApiRe
         .map_err(internal)?;
     tx.commit().await.map_err(internal)?;
     Ok(Json(json!({
-     "disconnected":true,
-     "provider_token_revoked":remote_revoked,
-     "reddit_evidence_deleted":true,
-     "notice":"Local Reddit access and source data are removed. If provider revocation is unconfirmed, revoke this app in Reddit settings. Research snapshots/annotations may still reference deleted evidence IDs; delete the account to erase them."
+        "disconnected": true,
+        "provider_token_revoked": remote_revoked,
+        "reddit_evidence_deleted": true,
+        "notice": "Local Reddit access and source data are removed. If provider revocation is unconfirmed, revoke \
+            this app in Reddit settings. Research snapshots/annotations may still reference deleted evidence IDs; \
+            delete the account to erase them.",
     })))
 }
 
@@ -356,13 +379,24 @@ pub(crate) async fn access_token(st: &AppState, id: Uuid) -> ApiResult<String> {
     let new_token: TokenResponse = response.json().await.map_err(internal)?;
     let encrypted = encrypt(st, &new_token.access_token)?;
     let replacement = new_token.refresh_token.as_ref().map(|s| encrypt(st, s)).transpose()?;
-    sqlx::query("UPDATE reddit_credentials SET access_token_ciphertext=$2,refresh_token_ciphertext=coalesce($3,refresh_token_ciphertext),expires_at=now()+($4 * interval '1 second'),updated_at=now() WHERE user_id=$1")
-    .bind(id).bind(encrypted).bind(replacement).bind(new_token.expires_in.max(1)).execute(&st.db).await.map_err(internal)?;
+    sqlx::query(
+        "UPDATE reddit_credentials SET access_token_ciphertext=$2,refresh_token_ciphertext=coalesce($3,\
+            refresh_token_ciphertext),expires_at=now()+($4 * interval '1 second'),updated_at=now() WHERE user_id=$1",
+    )
+    .bind(id)
+    .bind(encrypted)
+    .bind(replacement)
+    .bind(new_token.expires_in.max(1))
+    .execute(&st.db)
+    .await
+    .map_err(internal)?;
+
     Ok(new_token.access_token)
 }
 
 #[cfg(test)]
 mod tests {
+    // Unwraps in these fixture tests are assertions: a failure must fail the test.
     use super::*;
     #[tokio::test]
     async fn token_encryption_round_trip() {

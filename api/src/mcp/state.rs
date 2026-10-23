@@ -82,9 +82,12 @@ pub async fn create_key(
             .await
             .map_err(internal)?;
     tx.commit().await.map_err(internal)?;
-    Ok(Json(
-        json!({"id":id,"label":label,"api_key":secret,"notice":"Copy this key now; it will not be shown again."}),
-    ))
+    Ok(Json(json!({
+        "id": id,
+        "label": label,
+        "api_key": secret,
+        "notice": "Copy this key now; it will not be shown again.",
+    })))
 }
 #[derive(Serialize, FromRow)]
 pub struct KeyRow {
@@ -95,8 +98,14 @@ pub struct KeyRow {
 }
 pub async fn list_keys(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<Json<Vec<KeyRow>>> {
     let owner = oauth::user_id(&st, &headers).await?;
-    let rows=sqlx::query_as("SELECT id,label,created_at,last_used_at FROM mcp_api_keys WHERE owner_id=$1 AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 50")
-  .bind(owner).fetch_all(&st.db).await.map_err(internal)?;
+    let rows = sqlx::query_as(
+        "SELECT id,label,created_at,last_used_at FROM mcp_api_keys WHERE owner_id=$1 AND revoked_at IS NULL ORDER \
+            BY created_at DESC LIMIT 50",
+    )
+    .bind(owner)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
     Ok(Json(rows))
 }
 pub async fn revoke_key(
@@ -115,7 +124,9 @@ pub async fn revoke_key(
     if result.rows_affected() == 0 {
         return Err(ApiError(StatusCode::NOT_FOUND, "Key not found".into()));
     }
-    Ok(Json(json!({"revoked":true})))
+    Ok(Json(json!({
+        "revoked": true,
+    })))
 }
 #[derive(Clone)]
 pub(crate) struct Record {
@@ -158,8 +169,19 @@ pub(crate) async fn put(st: &AppState, user: Uuid, kind: &str, id: &str, value: 
     Ok(())
 }
 pub(crate) async fn save(st: &AppState, user: Uuid, kind: &str, id: &str, record: Record) -> ApiResult<()> {
-    let count=sqlx::query("UPDATE mcp_records SET payload=$4,version=version+1,updated_at=now() WHERE owner_id=$1 AND kind=$2 AND id=$3 AND version=$5")
-  .bind(user).bind(kind).bind(id).bind(record.value).bind(record.version).execute(&st.db).await.map_err(internal)?.rows_affected();
+    let count = sqlx::query(
+        "UPDATE mcp_records SET payload=$4,version=version+1,updated_at=now() WHERE owner_id=$1 AND kind=$2 AND \
+            id=$3 AND version=$5",
+    )
+    .bind(user)
+    .bind(kind)
+    .bind(id)
+    .bind(record.value)
+    .bind(record.version)
+    .execute(&st.db)
+    .await
+    .map_err(internal)?
+    .rows_affected();
     if count == 0 {
         return Err(ApiError(
             StatusCode::CONFLICT,
@@ -180,17 +202,6 @@ pub(crate) async fn list(st: &AppState, user: Uuid, kind: &str, limit: i64) -> A
     .map_err(internal)?;
     Ok(rows.into_iter().map(|(v,)| v).collect())
 }
-pub(crate) async fn is_owned(st: &AppState, user: Uuid, kind: &str, id: &str) -> ApiResult<bool> {
-    let yes: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM mcp_records WHERE owner_id=$1 AND kind=$2 AND id=$3)")
-            .bind(user)
-            .bind(kind)
-            .bind(id)
-            .fetch_one(&st.db)
-            .await
-            .map_err(internal)?;
-    Ok(yes)
-}
 pub(crate) fn string<'a>(v: &'a Value, key: &str) -> &'a str {
     v.get(key).and_then(Value::as_str).unwrap_or("")
 }
@@ -207,11 +218,4 @@ pub(crate) fn limited_array(v: &Value, key: &str, max: usize) -> ApiResult<Vec<V
         return Err(bad(&format!("Too many {key} (limit {max})")));
     }
     Ok(arr)
-}
-pub(crate) fn redact_error(e: &ApiError) -> String {
-    if e.0.is_server_error() {
-        "Server error".to_string()
-    } else {
-        e.1.clone()
-    }
 }

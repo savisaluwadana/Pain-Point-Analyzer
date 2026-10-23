@@ -111,9 +111,17 @@ async fn reserve_provider_request(st: &AppState, user: Uuid) -> ApiResult<()> {
                     .into(),
             ));
         }
-        sqlx::query("UPDATE reddit_api_budgets SET request_count=$2,window_started_at=CASE WHEN $3 THEN now() ELSE window_started_at END,blocked_until=CASE WHEN blocked_until<now() THEN NULL ELSE blocked_until END WHERE scope=$1")
-   .bind(&scope).bind(if elapsed{1}else{count+1}).bind(elapsed)
-   .execute(&mut *tx).await.map_err(internal)?;
+        sqlx::query(
+            "UPDATE reddit_api_budgets SET request_count=$2,window_started_at=CASE WHEN $3 THEN now() ELSE \
+                window_started_at END,blocked_until=CASE WHEN blocked_until<now() THEN NULL ELSE blocked_until END \
+                WHERE scope=$1",
+        )
+        .bind(&scope)
+        .bind(if elapsed { 1 } else { count + 1 })
+        .bind(elapsed)
+        .execute(&mut *tx)
+        .await
+        .map_err(internal)?;
     }
     tx.commit().await.map_err(internal)?;
     Ok(())
@@ -143,8 +151,14 @@ async fn backoff_after_provider_response(st: &AppState, response: &reqwest::Resp
             })
             .unwrap_or(60)
             .clamp(5, 3600);
-        sqlx::query("UPDATE reddit_api_budgets SET blocked_until=GREATEST(COALESCE(blocked_until,now()),now()+($1 * interval '1 second')) WHERE scope='global'")
-    .bind(delay).execute(&st.db).await.map_err(internal)?;
+        sqlx::query(
+            "UPDATE reddit_api_budgets SET blocked_until=GREATEST(COALESCE(blocked_until,now()),now()+($1 * \
+                interval '1 second')) WHERE scope='global'",
+        )
+        .bind(delay)
+        .execute(&st.db)
+        .await
+        .map_err(internal)?;
     }
     Ok(())
 }
@@ -234,11 +248,12 @@ pub async fn posts(
     if let Some(after) = q.after {
         query.push(("after", after));
     }
-    let result = reddit_get(&st, user, &format!("/r/{}/top", &q.subreddit), query).await?;
+    let result = reddit_get(&st, user, &format!("/r/{}/top", q.subreddit), query).await?;
     let listing: Listing = serde_json::from_value(result).map_err(internal)?;
-    Ok(Json(
-        serde_json::json!({"posts":listing.data.children.into_iter().map(|c|c.data).collect::<Vec<_>>(),"after":listing.data.after}),
-    ))
+    Ok(Json(serde_json::json!({
+        "posts": listing.data.children.into_iter().map(|c| c.data).collect::<Vec<_>>(),
+        "after": listing.data.after,
+    })))
 }
 pub async fn comments(
     State(st): State<AppState>,
@@ -263,6 +278,7 @@ pub async fn comments(
 }
 #[cfg(test)]
 mod tests {
+    // Unwraps in these fixture tests are assertions: a failure must fail the test.
     use super::*;
     #[test]
     fn bounded_names() {
@@ -364,7 +380,37 @@ mod comment_tests {
     use super::*;
     #[test]
     fn nested_comments_are_bounded_and_exclude_deleted() {
-        let value = serde_json::json!({"data":{"children":[{"kind":"t1","data":{"id":"abc","body":"manual workaround","replies":{"data":{"children":[{"kind":"t1","data":{"id":"def","body":"[deleted]"}}]}}}},{"kind":"more","data":{"id":"ghi"}}]}});
+        let value = serde_json::json!({
+            "data": {
+                "children": [
+                    {
+                        "kind": "t1",
+                        "data": {
+                            "id": "abc",
+                            "body": "manual workaround",
+                            "replies": {
+                                "data": {
+                                    "children": [{
+                                        "kind": "t1",
+                                        "data": {
+                                            "id": "def",
+                                            "body": "[deleted]",
+                                        },
+                                    }],
+                                },
+                            },
+                        },
+                    },
+                    {
+                        "kind": "more",
+                        "data": {
+                            "id": "ghi",
+                        },
+                    },
+                ],
+            },
+        });
+
         let mut out = Vec::new();
         flatten_comments(&value, &mut out, 25, 0);
         assert_eq!(out.len(), 1);

@@ -42,8 +42,13 @@ pub async fn login(
         return Err(ApiError(StatusCode::UNAUTHORIZED, "Invalid local access token".into()));
     }
     let mut tx = st.db.begin().await.map_err(internal)?;
-    let id:Uuid=sqlx::query_scalar("INSERT INTO users(reddit_id,reddit_username) VALUES('local-only','local-researcher') ON CONFLICT(reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id")
-        .fetch_one(&mut *tx).await.map_err(internal)?;
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO users(reddit_id,reddit_username) VALUES('local-only','local-researcher') ON \
+            CONFLICT(reddit_id) DO UPDATE SET reddit_username=excluded.reddit_username RETURNING id",
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(internal)?;
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     let session = URL_SAFE_NO_PAD.encode(bytes);
@@ -55,7 +60,10 @@ pub async fn login(
         .await
         .map_err(internal)?;
     tx.commit().await.map_err(internal)?;
-    let mut response = Json(json!({"ok":true})).into_response();
+    let mut response = Json(json!({
+        "ok": true,
+    }))
+    .into_response();
     response.headers_mut().append(
         SET_COOKIE,
         HeaderValue::from_str(&oauth::callback_cookie(&st, &session, 604800)).map_err(internal)?,

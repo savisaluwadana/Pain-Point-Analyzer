@@ -231,7 +231,10 @@ fn bluesky_findings(v: &Value) -> Vec<Finding> {
                         body: short(&raw(x, "/record/text"), 1200),
                         url: format!("https://bsky.app/profile/{handle}/post/{rkey}"),
                         published: get_date(&raw(x, "/record/createdAt")),
-                        metadata: json!({"indexed_at":x["indexedAt"],"source":"Bluesky AppView (api.bsky.app)"}),
+                        metadata: json!({
+                            "indexed_at": x["indexedAt"],
+                            "source": "Bluesky AppView (api.bsky.app)",
+                        }),
                     })
                 })
                 .collect()
@@ -257,12 +260,32 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
                 .filter(|x| !x.is_empty())
                 .map(|x| ("Authorization", format!("Bearer {x}")));
             let v = get_json(&client, source, u, auth).await?;
-            v["items"].as_array().map(|a|a.iter().filter_map(|x|{
-                let url=raw(x,"/html_url");if !url.starts_with("https://github.com/"){return None;}
-                Some(Finding{id:raw(x,"/node_id"),title:raw(x,"/title"),body:short(&raw(x,"/body"),1200),url,
-                published:get_date(&raw(x,"/created_at")),
-                metadata:json!({"repository":raw(x,"/repository_url"),"comments":x["comments"],"state":x["state"],"source":"GitHub public Issues"})})
-            }).collect()).unwrap_or_default()
+            v["items"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| {
+                            let url = raw(x, "/html_url");
+                            if !url.starts_with("https://github.com/") {
+                                return None;
+                            }
+                            Some(Finding {
+                                id: raw(x, "/node_id"),
+                                title: raw(x, "/title"),
+                                body: short(&raw(x, "/body"), 1200),
+                                url,
+                                published: get_date(&raw(x, "/created_at")),
+                                metadata: json!({
+                                    "repository": raw(x, "/repository_url"),
+                                    "comments": x["comments"],
+                                    "state": x["state"],
+                                    "source": "GitHub public Issues",
+                                }),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         }
         "hackernews" => {
             // Community-maintained Algolia full-text index of public Hacker News data.
@@ -286,7 +309,10 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
                                 body: html_text(&raw(x, "/comment_text")),
                                 url: format!("https://news.ycombinator.com/item?id={id}"),
                                 published: get_date(&raw(x, "/created_at")),
-                                metadata: json!({"story_id":x["story_id"],"index":"Algolia HN Search (third-party)"}),
+                                metadata: json!({
+                                    "story_id": x["story_id"],
+                                    "index": "Algolia HN Search (third-party)",
+                                }),
                             })
                         })
                         .collect()
@@ -312,13 +338,34 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
                     "Stack Exchange requires a backoff before making another request".into(),
                 ));
             }
-            v["items"].as_array().map(|a|a.iter().filter_map(|x|{
-                let url=raw(x,"/link");let id=x["question_id"].as_i64()?;
-                if !url.starts_with("https://stackoverflow.com/"){return None;}
-                Some(Finding{id:id.to_string(),title:html_text(&raw(x,"/title")),body:html_text(&raw(x,"/body")),
-                url,published:x["creation_date"].as_i64().and_then(|t|DateTime::from_timestamp(t,0)),
-                metadata:json!({"score":x["score"],"tags":x["tags"],"author":raw(x,"/owner/display_name"),"license":"CC BY-SA; version depends on post date","license_url":"https://stackoverflow.com/help/licensing"})})
-            }).collect()).unwrap_or_default()
+            v["items"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| {
+                            let url = raw(x, "/link");
+                            let id = x["question_id"].as_i64()?;
+                            if !url.starts_with("https://stackoverflow.com/") {
+                                return None;
+                            }
+                            Some(Finding {
+                                id: id.to_string(),
+                                title: html_text(&raw(x, "/title")),
+                                body: html_text(&raw(x, "/body")),
+                                url,
+                                published: x["creation_date"].as_i64().and_then(|t| DateTime::from_timestamp(t, 0)),
+                                metadata: json!({
+                                    "score": x["score"],
+                                    "tags": x["tags"],
+                                    "author": raw(x, "/owner/display_name"),
+                                    "license": "CC BY-SA; version depends on post date",
+                                    "license_url": "https://stackoverflow.com/help/licensing",
+                                }),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         }
         "bluesky" => {
             // public.api.bsky.app is a cached mirror that answers searchPosts with 403;
@@ -345,15 +392,38 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
             }
             let u = uri("https://www.googleapis.com/youtube/v3/commentThreads", &args)?;
             let v = get_json(&client, source, u, None).await?;
-            v["items"].as_array().map(|a|a.iter().filter_map(|x|{
-                let comment_id=raw(x,"/snippet/topLevelComment/id");
-                if comment_id.is_empty()||!comment_id.bytes().all(|c|c.is_ascii_alphanumeric()||c==b'-'||c==b'_'){return None;}
-                let comment=&x["snippet"]["topLevelComment"]["snippet"];
-                Some(Finding{id:comment_id.clone(),title:format!("YouTube comment on {id}"),body:short(&raw(comment,"/textOriginal"),1200),
-                url:format!("https://www.youtube.com/watch?v={id}&lc={comment_id}"),
-                published:get_date(&raw(comment,"/publishedAt")),
-                metadata:json!({"video_id":id,"like_count":comment["likeCount"],"source":"YouTube Data API; provider policies apply"})})
-            }).collect()).unwrap_or_default()
+            v["items"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| {
+                            let comment_id = raw(x, "/snippet/topLevelComment/id");
+                            if comment_id.is_empty()
+                                || !comment_id
+                                    .bytes()
+                                    .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+                            {
+                                return None;
+                            }
+
+                            let comment = &x["snippet"]["topLevelComment"]["snippet"];
+                            Some(Finding {
+                                id: comment_id.clone(),
+                                title: format!("YouTube comment on {id}"),
+                                body: short(&raw(comment, "/textOriginal"), 1200),
+
+                                url: format!("https://www.youtube.com/watch?v={id}&lc={comment_id}"),
+                                published: get_date(&raw(comment, "/publishedAt")),
+                                metadata: json!({
+                                    "video_id": id,
+                                    "like_count": comment["likeCount"],
+                                    "source": "YouTube Data API; provider policies apply",
+                                }),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         }
         "discourse" => {
             let host = discourse_host(target)?;
@@ -362,17 +432,30 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
             v["posts"]
                 .as_array()
                 .map(|a| {
-                    a.iter().take(limit).filter_map(|x|{
-                let post_id=x["id"].as_i64()?;
-                let topic_id=x["topic_id"].as_i64()?;
-                let post_number=x["post_number"].as_i64().unwrap_or(1);
-                if post_id<=0||topic_id<=0||post_number<=0{return None;}
-                Some(Finding{id:format!("{host}:{post_id}"),title:format!("Discourse discussion #{topic_id}"),
-                body:html_text(&raw(x,"/blurb")),
-                url:format!("https://{host}/t/{topic_id}/{post_number}"),
-                published:get_date(&raw(x,"/created_at")),
-                metadata:json!({"forum":host,"topic_id":topic_id,"post_number":post_number,"public_search":true})})
-            }).collect()
+                    a.iter()
+                        .take(limit)
+                        .filter_map(|x| {
+                            let post_id = x["id"].as_i64()?;
+                            let topic_id = x["topic_id"].as_i64()?;
+                            let post_number = x["post_number"].as_i64().unwrap_or(1);
+                            if post_id <= 0 || topic_id <= 0 || post_number <= 0 {
+                                return None;
+                            }
+                            Some(Finding {
+                                id: format!("{host}:{post_id}"),
+                                title: format!("Discourse discussion #{topic_id}"),
+                                body: html_text(&raw(x, "/blurb")),
+                                url: format!("https://{host}/t/{topic_id}/{post_number}"),
+                                published: get_date(&raw(x, "/created_at")),
+                                metadata: json!({
+                                    "forum": host,
+                                    "topic_id": topic_id,
+                                    "post_number": post_number,
+                                    "public_search": true
+                                }),
+                            })
+                        })
+                        .collect()
                 })
                 .unwrap_or_default()
         }
@@ -382,15 +465,32 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
             let body = fetch_bytes(&client, source, u, None).await?;
             let channel = rss::Channel::read_from(&body[..])
                 .map_err(|_| ApiError(StatusCode::BAD_GATEWAY, "Medium returned an invalid RSS feed".into()))?;
-            channel.items().iter().take(limit).filter_map(|x|{
-                let url=x.link()?.to_string();
-                if !url.starts_with("https://medium.com/"){return None;}
-                Some(Finding{id:x.guid().map(|g|g.value()).unwrap_or(&url).to_owned(),
-                title:x.title().unwrap_or("Medium article").to_owned(),
-                body:html_text(x.description().unwrap_or("")),
-                url,published:x.pub_date().and_then(|d|DateTime::parse_from_rfc2822(d).ok()).map(|d|d.with_timezone(&Utc)),
-                metadata:json!({"topic_tag":tag,"discovery":"Medium public RSS; excerpts only, no paywall bypass"})})
-            }).collect()
+            channel
+                .items()
+                .iter()
+                .take(limit)
+                .filter_map(|x| {
+                    let url = x.link()?.to_string();
+                    if !url.starts_with("https://medium.com/") {
+                        return None;
+                    }
+                    Some(Finding {
+                        id: x.guid().map(|g| g.value()).unwrap_or(&url).to_owned(),
+                        title: x.title().unwrap_or("Medium article").to_owned(),
+                        body: html_text(x.description().unwrap_or("")),
+                        url,
+                        published: x
+                            .pub_date()
+                            .and_then(|d| DateTime::parse_from_rfc2822(d).ok())
+                            .map(|d| d.with_timezone(&Utc)),
+
+                        metadata: json!({
+                            "topic_tag": tag,
+                            "discovery": "Medium public RSS; excerpts only, no paywall bypass"
+                        }),
+                    })
+                })
+                .collect()
         }
         _ => return Err(bad("Unsupported source")),
     };
@@ -409,7 +509,8 @@ async fn budget(st: &AppState, uid: Uuid, source: &str) -> ApiResult<()> {
         .await
         .map_err(internal)?;
     let (started, count): (DateTime<Utc>, i32) = sqlx::query_as(
-        "SELECT window_started_at,request_count FROM source_request_budgets WHERE owner_id=$1 AND source=$2 FOR UPDATE",
+        "SELECT window_started_at,request_count FROM source_request_budgets WHERE owner_id=$1 AND source=$2 FOR \
+            UPDATE",
     )
     .bind(uid)
     .bind(source)
@@ -423,24 +524,86 @@ async fn budget(st: &AppState, uid: Uuid, source: &str) -> ApiResult<()> {
             "Collection is limited to four requests per source per minute; try later".into(),
         ));
     }
-    sqlx::query("UPDATE source_request_budgets SET window_started_at=CASE WHEN $3 THEN now() ELSE window_started_at END,request_count=$4 WHERE owner_id=$1 AND source=$2")
-        .bind(uid).bind(source).bind(reset).bind(if reset{1}else{count+1}).execute(&mut *tx).await.map_err(internal)?;
+    sqlx::query(
+        "UPDATE source_request_budgets SET window_started_at=CASE WHEN $3 THEN now() ELSE window_started_at END,\
+            request_count=$4 WHERE owner_id=$1 AND source=$2",
+    )
+    .bind(uid)
+    .bind(source)
+    .bind(reset)
+    .bind(if reset { 1 } else { count + 1 })
+    .execute(&mut *tx)
+    .await
+    .map_err(internal)?;
     tx.commit().await.map_err(internal)?;
     Ok(())
 }
 pub async fn catalog() -> Json<Value> {
     let youtube = env::var("YOUTUBE_API_KEY").is_ok_and(|v| !v.trim().is_empty());
     let discourse = env::var("DISCOURSE_ALLOWED_HOSTS").is_ok_and(|v| !v.trim().is_empty());
-    Json(json!({"sources":[
-        {"id":"arctic-shift","name":"Reddit archive (Arctic Shift)","mode":"subreddit","ready":true,"note":"No Reddit login/key. Archived samples, not live rankings. One subreddit per call; pace calls at least 10 seconds apart. Review data-use terms."},
-        {"id":"github","name":"GitHub Issues","mode":"keyword","ready":true,"note":"Read-only public issues; rate-limited. Optional GitHub token."},
-        {"id":"hackernews","name":"Hacker News","mode":"keyword","ready":true,"note":"Public comments via third-party Algolia HN index."},
-        {"id":"stackoverflow","name":"Stack Overflow","mode":"keyword","ready":true,"note":"Stack Exchange API; respect CC BY-SA attribution and backoff."},
-        {"id":"bluesky","name":"Bluesky","mode":"keyword","ready":true,"note":"Unauthenticated AppView search (api.bsky.app); skips authors who opt out of logged-out visibility."},
-        {"id":"youtube","name":"YouTube Comments","mode":"video","ready":youtube,"note":"Requires YouTube Data API key and a video ID; subject to quota."},
-        {"id":"discourse","name":"Discourse Forums","mode":"forum","ready":discourse,"note":"Public search on explicitly allowlisted community domains."},
-        {"id":"medium","name":"Medium RSS","mode":"tag","ready":true,"note":"Public topic RSS; article excerpts only, no paywalled content."}
-    ]}))
+    Json(json!({
+        "sources": [
+            {
+                "id": "arctic-shift",
+                "name": "Reddit archive (Arctic Shift)",
+                "mode": "subreddit",
+                "ready": true,
+                "note":
+                    "No Reddit login/key. Archived samples, not live rankings. One subreddit per call; pace calls \
+                        at least 10 seconds apart. Review data-use terms.",
+            },
+            {
+                "id": "github",
+                "name": "GitHub Issues",
+                "mode": "keyword",
+                "ready": true,
+                "note": "Read-only public issues; rate-limited. Optional GitHub token.",
+            },
+            {
+                "id": "hackernews",
+                "name": "Hacker News",
+                "mode": "keyword",
+                "ready": true,
+                "note": "Public comments via third-party Algolia HN index.",
+            },
+            {
+                "id": "stackoverflow",
+                "name": "Stack Overflow",
+                "mode": "keyword",
+                "ready": true,
+                "note": "Stack Exchange API; respect CC BY-SA attribution and backoff.",
+            },
+            {
+                "id": "bluesky",
+                "name": "Bluesky",
+                "mode": "keyword",
+                "ready": true,
+                "note": "Unauthenticated AppView search (api.bsky.app); skips authors who opt out of logged-out \
+                    visibility.",
+            },
+            {
+                "id": "youtube",
+                "name": "YouTube Comments",
+                "mode": "video",
+                "ready": youtube,
+                "note": "Requires YouTube Data API key and a video ID; subject to quota.",
+            },
+            {
+                "id": "discourse",
+                "name": "Discourse Forums",
+                "mode": "forum",
+                "ready": discourse,
+                "note": "Public search on explicitly allowlisted community domains.",
+            },
+            {
+                "id": "medium",
+                "name": "Medium RSS",
+                "mode": "tag",
+                "ready": true,
+                "note": "Public topic RSS; article excerpts only, no paywalled content.",
+            },
+        ],
+    }))
 }
 pub async fn collect(
     State(st): State<AppState>,
@@ -510,12 +673,32 @@ pub async fn collect(
             .or_else(|| finding.metadata.get("repository"))
             .and_then(Value::as_str)
             .unwrap_or("");
-        let meta = json!({"connector":req.source,"source_name":req.source,"community":community,
-            "collected_via":"official-or-published-public-interface","details":finding.metadata});
-        let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
-            .bind(user).bind(req.project_id).bind(&req.source).bind(short(&finding.id,255))
-            .bind(short(&finding.url,2048)).bind(short(&finding.title,500)).bind(short(&finding.body,1200))
-            .bind(finding.published).bind(meta).fetch_one(&mut *tx).await.map_err(internal)?;
+        let meta = json!({
+            "connector": req.source,
+            "source_name": req.source,
+            "community": community,
+            "collected_via": "official-or-published-public-interface",
+            "details": finding.metadata,
+        });
+        let id: Uuid = sqlx::query_scalar(
+            "INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,\
+                metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE \
+                SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,\
+                title=excluded.title,body=excluded.body,published_at=excluded.published_at,\
+                metadata=excluded.metadata,collected_at=now() RETURNING id",
+        )
+        .bind(user)
+        .bind(req.project_id)
+        .bind(&req.source)
+        .bind(short(&finding.id, 255))
+        .bind(short(&finding.url, 2048))
+        .bind(short(&finding.title, 500))
+        .bind(short(&finding.body, 1200))
+        .bind(finding.published)
+        .bind(meta)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(internal)?;
         link_project(&mut tx, user, id, req.project_id).await?;
         if let Some(batch) = req.batch_id.as_deref() {
             sqlx::query(
@@ -531,8 +714,12 @@ pub async fn collect(
         saved += 1;
     }
     tx.commit().await.map_err(internal)?;
-    Ok(Json(json!({"source":req.source,"saved":saved,"matched":items.len(),
-        "note":"Read-only research evidence; verify context, licenses and original discussions before acting."})))
+    Ok(Json(json!({
+        "source": req.source,
+        "saved": saved,
+        "matched": items.len(),
+        "note": "Read-only research evidence; verify context, licenses and original discussions before acting.",
+    })))
 }
 #[cfg(test)]
 mod tests {
@@ -554,13 +741,43 @@ mod tests {
     }
     #[test]
     fn bluesky_skips_opted_out_authors_and_bad_record_keys() {
-        let v = json!({"posts":[
-            {"uri":"at://did:plc:abc/app.bsky.feed.post/3kabc","author":{"handle":"alice.bsky.social","labels":[]},
-             "record":{"text":"invoicing is a nightmare","createdAt":"2026-10-01T00:00:00Z"},"indexedAt":"2026-10-01T00:00:01Z"},
-            {"uri":"at://did:plc:def/app.bsky.feed.post/3kdef","author":{"handle":"bob.bsky.social","labels":[{"val":"!no-unauthenticated"}]},
-             "record":{"text":"should not be collected"}},
-            {"uri":"at://did:plc:ghi/app.bsky.feed.post/bad$key","author":{"handle":"eve.bsky.social"},"record":{"text":"bad key"}}
-        ]});
+        let v = json!({
+            "posts": [
+                {
+                    "uri": "at://did:plc:abc/app.bsky.feed.post/3kabc",
+                    "author": {
+                        "handle": "alice.bsky.social",
+                        "labels": [],
+                    },
+                    "record": {
+                        "text": "invoicing is a nightmare",
+                        "createdAt": "2026-10-01T00:00:00Z",
+                    },
+                    "indexedAt": "2026-10-01T00:00:01Z",
+                },
+                {
+                    "uri": "at://did:plc:def/app.bsky.feed.post/3kdef",
+                    "author": {
+                        "handle": "bob.bsky.social",
+                        "labels": [{
+                            "val": "!no-unauthenticated",
+                        }],
+                    },
+                    "record": {
+                        "text": "should not be collected",
+                    },
+                },
+                {
+                    "uri": "at://did:plc:ghi/app.bsky.feed.post/bad$key",
+                    "author": {
+                        "handle": "eve.bsky.social",
+                    },
+                    "record": {
+                        "text": "bad key",
+                    },
+                },
+            ],
+        });
         let found = bluesky_findings(&v);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].url, "https://bsky.app/profile/alice.bsky.social/post/3kabc");

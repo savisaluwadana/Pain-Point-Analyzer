@@ -44,7 +44,13 @@ pub(crate) struct AppState {
 pub(crate) struct ApiError(pub StatusCode, pub String);
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.0, Json(json!({"error":self.1}))).into_response()
+        (
+            self.0,
+            Json(json!({
+                "error": self.1,
+            })),
+        )
+            .into_response()
     }
 }
 pub(crate) type ApiResult<T> = Result<T, ApiError>;
@@ -122,10 +128,19 @@ fn config() -> anyhow::Result<Config> {
 
 async fn health(axum::extract::State(st): axum::extract::State<AppState>) -> impl IntoResponse {
     match sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&st.db).await {
-        Ok(_) => (StatusCode::OK, Json(json!({"ok":true,"database":"ready"}))),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({
+                "ok": true,
+                "database": "ready",
+            })),
+        ),
         Err(_) => (
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(json!({"ok":false,"database":"unavailable"})),
+            Json(json!({
+                "ok": false,
+                "database": "unavailable",
+            })),
         ),
     }
 }

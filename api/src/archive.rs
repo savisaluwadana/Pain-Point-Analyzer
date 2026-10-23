@@ -12,7 +12,9 @@ use sqlx::types::Uuid;
 use std::collections::HashSet;
 
 const BASE: &str = "https://arctic-shift.photon-reddit.com/api";
-const NOTE: &str = "Arctic Shift archive sample, not live Reddit rankings. Scores/comments may be stale. Deleted/removed items are skipped as marked in the archive; current deletion status is not verified. Source text is untrusted evidence.";
+const NOTE: &str = "Arctic Shift archive sample, not live Reddit rankings. Scores/comments may be stale. \
+    Deleted/removed items are skipped as marked in the archive; current deletion status is not verified. Source \
+    text is untrusted evidence.";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -111,26 +113,68 @@ fn select(payload: &Value, req: &Request) -> ApiResult<(usize, Vec<Item>)> {
     let mut seen = HashSet::new();
     let query = req.query.as_deref().unwrap_or("").trim().to_lowercase();
     let cutoff = Utc::now() - Duration::days(req.days.unwrap_or(30));
-    let mut items: Vec<Item> = rows.iter().take(req.sample_size.unwrap_or(100)).filter_map(|v| {
-        let id = text(v, "id");
-        if !valid_id(&id) || removed(v) || !text(v, "subreddit").eq_ignore_ascii_case(&req.subreddit) { return None; }
-        let published = DateTime::from_timestamp(v["created_utc"].as_i64()?, 0)?;
-        if published < cutoff || published > Utc::now() { return None; }
-        let (source_id, url, title, body) = if let Some(post) = &req.post_id {
-            if text(v, "link_id").trim_start_matches("t3_") != post { return None; }
-            (format!("{post}:{id}"), format!("https://www.reddit.com/r/{}/comments/{post}/_/{id}/", req.subreddit), format!("Comment on {post}"), text(v, "body"))
-        } else {
-            (format!("t3_{id}"), format!("https://www.reddit.com/r/{}/comments/{id}/", req.subreddit), text(v, "title"), text(v, "selftext"))
-        };
-        if (title.is_empty() && body.is_empty()) || (req.post_id.is_some() && body.is_empty())
-            || !format!("{title} {body}").to_lowercase().contains(&query) || !seen.insert(id) { return None; }
-        Some(Item { source_id, url, title: title.chars().take(500).collect(), body: body.chars().take(3000).collect(), published,
-            metadata: json!({"provider":"arctic-shift", "source_name":"Arctic Shift", "community":req.subreddit.to_lowercase(),
-                "score":v["score"], "num_comments":v["num_comments"], "retrieved_on":v["retrieved_on"],
-                "thread_id":req.post_id.clone().unwrap_or_else(||text(v,"id")), "batch_id":req.batch_id, "archived":true, "ranking":req.ranking.as_deref().unwrap_or("top")}) })
-    }).collect();
+    let mut items: Vec<Item> = rows
+        .iter()
+        .take(req.sample_size.unwrap_or(100))
+        .filter_map(|v| {
+            let id = text(v, "id");
+            if !valid_id(&id) || removed(v) || !text(v, "subreddit").eq_ignore_ascii_case(&req.subreddit) {
+                return None;
+            }
+            let published = DateTime::from_timestamp(v["created_utc"].as_i64()?, 0)?;
+            if published < cutoff || published > Utc::now() {
+                return None;
+            }
+            let (source_id, url, title, body) = if let Some(post) = &req.post_id {
+                if text(v, "link_id").trim_start_matches("t3_") != post {
+                    return None;
+                }
+                (
+                    format!("{post}:{id}"),
+                    format!("https://www.reddit.com/r/{}/comments/{post}/_/{id}/", req.subreddit),
+                    format!("Comment on {post}"),
+                    text(v, "body"),
+                )
+            } else {
+                (
+                    format!("t3_{id}"),
+                    format!("https://www.reddit.com/r/{}/comments/{id}/", req.subreddit),
+                    text(v, "title"),
+                    text(v, "selftext"),
+                )
+            };
+            if (title.is_empty() && body.is_empty())
+                || (req.post_id.is_some() && body.is_empty())
+                || !format!("{title} {body}").to_lowercase().contains(&query)
+                || !seen.insert(id)
+            {
+                return None;
+            }
+            Some(Item {
+                source_id,
+                url,
+                title: title.chars().take(500).collect(),
+                body: body.chars().take(3000).collect(),
+                published,
+
+                metadata: json!({
+                    "provider": "arctic-shift",
+                    "source_name": "Arctic Shift",
+                    "community": req.subreddit.to_lowercase(),
+
+                    "score": v["score"],
+                    "num_comments": v["num_comments"],
+                    "retrieved_on": v["retrieved_on"],
+                    "thread_id": req.post_id.clone().unwrap_or_else(|| text(v, "id")),
+                    "batch_id": req.batch_id,
+                    "archived": true,
+                    "ranking": req.ranking.as_deref().unwrap_or("top"),
+                }),
+            })
+        })
+        .collect();
     if req.ranking.as_deref() == Some("new") {
-        items.sort_by(|a, b| b.published.cmp(&a.published));
+        items.sort_by_key(|item| std::cmp::Reverse(item.published));
     } else {
         items.sort_by(|a, b| {
             b.metadata["score"]
@@ -158,8 +202,14 @@ fn select(payload: &Value, req: &Request) -> ApiResult<(usize, Vec<Item>)> {
 }
 
 async fn reserve(st: &AppState) -> ApiResult<()> {
-    let reserved: Option<String> = sqlx::query_scalar("INSERT INTO archive_provider_budget(provider,next_request_at) VALUES('arctic-shift',now()+interval '10 seconds') ON CONFLICT(provider) DO UPDATE SET next_request_at=excluded.next_request_at WHERE archive_provider_budget.next_request_at<=now() RETURNING provider")
-        .fetch_optional(&st.db).await.map_err(internal)?;
+    let reserved: Option<String> = sqlx::query_scalar(
+        "INSERT INTO archive_provider_budget(provider,next_request_at) VALUES('arctic-shift',now()+interval '10 \
+            seconds') ON CONFLICT(provider) DO UPDATE SET next_request_at=excluded.next_request_at WHERE \
+            archive_provider_budget.next_request_at<=now() RETURNING provider",
+    )
+    .fetch_optional(&st.db)
+    .await
+    .map_err(internal)?;
     if reserved.is_none() {
         return Err(ApiError(
             StatusCode::TOO_MANY_REQUESTS,
@@ -226,9 +276,25 @@ async fn fetch(st: &AppState, req: &Request) -> ApiResult<Value> {
         } else {
             retry_seconds(response.headers())
         };
-        sqlx::query("UPDATE archive_provider_budget SET next_request_at=GREATEST(next_request_at,now()+($1::double precision * interval '1 second')) WHERE provider='arctic-shift'")
-            .bind(delay as f64).execute(&st.db).await.map_err(internal)?;
-        return Err(ApiError(if status == StatusCode::TOO_MANY_REQUESTS {status} else {StatusCode::BAD_GATEWAY}, format!("Arctic Shift returned {status}; requests paused for at least {delay} seconds. No fallback or automatic retry was attempted.")));
+        sqlx::query(
+            "UPDATE archive_provider_budget SET next_request_at=GREATEST(next_request_at,now()+($1::double \
+                precision * interval '1 second')) WHERE provider='arctic-shift'",
+        )
+        .bind(delay as f64)
+        .execute(&st.db)
+        .await
+        .map_err(internal)?;
+        return Err(ApiError(
+            if status == StatusCode::TOO_MANY_REQUESTS {
+                status
+            } else {
+                StatusCode::BAD_GATEWAY
+            },
+            format!(
+                "Arctic Shift returned {status}; requests paused for at least {delay} seconds. No fallback or \
+                    automatic retry was attempted."
+            ),
+        ));
     }
     if !status.is_success() {
         return Err(ApiError(
@@ -277,7 +343,7 @@ pub(crate) async fn collect(st: &AppState, owner: Uuid, req: Request) -> ApiResu
 async fn persist(st: &AppState, owner: Uuid, req: &Request, payload: &Value) -> ApiResult<Value> {
     // Recheck ownership immediately before writing, including synthetic integration tests.
     assert_project(st, owner, req.project_id).await?;
-    let (eligible, items) = select(&payload, &req)?;
+    let (eligible, items) = select(payload, req)?;
     let kind = if req.post_id.is_some() {
         "reddit-archive-comment"
     } else {
@@ -286,9 +352,25 @@ async fn persist(st: &AppState, owner: Uuid, req: &Request, payload: &Value) -> 
     let mut tx = st.db.begin().await.map_err(internal)?;
     let mut ids = Vec::new();
     for item in &items {
-        let id: Uuid = sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,title=excluded.title,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
-            .bind(owner).bind(req.project_id).bind(kind).bind(&item.source_id).bind(&item.url).bind(&item.title).bind(&item.body).bind(item.published).bind(&item.metadata)
-            .fetch_one(&mut *tx).await.map_err(internal)?;
+        let id: Uuid = sqlx::query_scalar(
+            "INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,published_at,\
+                metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE \
+                SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,\
+                title=excluded.title,body=excluded.body,published_at=excluded.published_at,\
+                metadata=excluded.metadata,collected_at=now() RETURNING id",
+        )
+        .bind(owner)
+        .bind(req.project_id)
+        .bind(kind)
+        .bind(&item.source_id)
+        .bind(&item.url)
+        .bind(&item.title)
+        .bind(&item.body)
+        .bind(item.published)
+        .bind(&item.metadata)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(internal)?;
         link_project(&mut tx, owner, id, req.project_id).await?;
         if let Some(batch) = req.batch_id.as_deref() {
             sqlx::query(
@@ -304,22 +386,49 @@ async fn persist(st: &AppState, owner: Uuid, req: &Request, payload: &Value) -> 
         ids.push(id);
     }
     tx.commit().await.map_err(internal)?;
-    Ok(
-        json!({"source":"arctic-shift", "source_kind":kind, "saved":ids.len(), "evidence_ids":ids,
-        "fetched":payload["data"].as_array().map_or(0,Vec::len), "eligible":eligible,
-        "items":items.iter().map(|i|json!({"source_id":i.source_id,"url":i.url,"title":i.title,"metadata":i.metadata})).collect::<Vec<_>>(),
-        "note":NOTE}),
-    )
+    Ok(json!({
+        "source": "arctic-shift",
+        "source_kind": kind,
+        "saved": ids.len(),
+        "evidence_ids": ids,
+        "fetched": payload["data"].as_array().map_or(0, Vec::len),
+        "eligible": eligible,
+        "items": items
+            .iter()
+            .map(|i| {
+                json!({
+                    "source_id": i.source_id,
+                    "url": i.url,
+                    "title": i.title,
+                    "metadata": i.metadata,
+                })
+            })
+            .collect::<Vec<_>>(),
+
+        "note": NOTE,
+    }))
 }
 
 #[cfg(test)]
 mod tests {
+    // Unwraps in these fixture tests are assertions: a failure must fail the test.
     use super::*;
     fn req() -> Request {
-        serde_json::from_value(json!({"subreddit":"freelance","limit":2})).unwrap()
+        serde_json::from_value(json!({
+            "subreddit": "freelance",
+            "limit": 2,
+        }))
+        .unwrap()
     }
     fn post(id: &str, score: i64) -> Value {
-        json!({"id":id,"subreddit":"freelance","title":"Manual invoicing","selftext":"takes hours", "created_utc":Utc::now().timestamp()-60,"score":score})
+        json!({
+            "id": id,
+            "subreddit": "freelance",
+            "title": "Manual invoicing",
+            "selftext": "takes hours",
+            "created_utc": Utc::now().timestamp() - 60,
+            "score": score,
+        })
     }
     #[test]
     fn filters_removed_wrong_community_duplicates_and_ranks() {
@@ -328,21 +437,38 @@ mod tests {
         let mut other = post("c", 200);
         other["subreddit"] = json!("other");
         let (_, items) = select(
-            &json!({"data":[post("a",1),deleted,other,post("d",10),post("d",10)]}),
+            &json!({
+                "data": [post("a", 1), deleted, other, post("d", 10), post("d", 10)],
+            }),
             &req(),
         )
         .unwrap();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].source_id, "t3_d");
-        assert!(select(&json!({"error":"blocked"}), &req()).is_err());
-        assert!(select(&json!({"data":[]}), &req()).unwrap().1.is_empty());
+        assert!(select(
+            &json!({
+                "error": "blocked"
+            }),
+            &req()
+        )
+        .is_err());
+        assert!(select(&json!({ "data": [] }), &req()).unwrap().1.is_empty());
     }
     #[test]
     fn middle_sample_and_comment_thread_validation() {
         let mut r = req();
         r.ranking = Some("mid".into());
         let (_, items) = select(
-            &json!({"data":[post("a",1),post("b",2),post("c",3),post("d",4),post("e",5),post("f",6)]}),
+            &json!({
+                "data": [
+                    post("a", 1),
+                    post("b", 2),
+                    post("c", 3),
+                    post("d", 4),
+                    post("e", 5),
+                    post("f", 6),
+                ],
+            }),
             &r,
         )
         .unwrap();
@@ -354,10 +480,24 @@ mod tests {
         let mut c = post("xyz", 3);
         c["link_id"] = json!("t3_abc");
         c["body"] = json!("manual work");
-        let (_, items) = select(&json!({"data":[c.clone()]}), &r).unwrap();
+        let (_, items) = select(
+            &json!({
+                "data": [c.clone()],
+            }),
+            &r,
+        )
+        .unwrap();
         assert_eq!(items[0].source_id, "abc:xyz");
         c["link_id"] = json!("t3_other");
-        assert!(select(&json!({"data":[c]}), &r).unwrap().1.is_empty());
+        assert!(select(
+            &json!({
+                "data": [c]
+            }),
+            &r
+        )
+        .unwrap()
+        .1
+        .is_empty());
     }
     #[test]
     fn validation_and_retry_headers() {
@@ -383,34 +523,32 @@ mod tests {
     }
     #[tokio::test]
     #[ignore = "Opt-in live archive smoke test; no CI dependency on upstream"]
-    async fn live_archive_sample() {
+    async fn live_archive_sample() -> Result<(), String> {
         let mut r = req();
         r.subreddit = "smallbusiness".into();
         let response = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(20))
             .redirect(reqwest::redirect::Policy::none())
             .build()
-            .unwrap()
-            .get(r.url().unwrap())
+            .map_err(|error| error.to_string())?
+            .get(r.url().map_err(|error| error.1)?)
             .header("User-Agent", "OpenSourceDiscoveryLab/0.1 (bounded archive research)")
             .header("Accept", "application/json")
             .send()
             .await
-            .unwrap();
-        assert!(
-            response.status().is_success(),
-            "archive HTTP {}: {}",
-            response.status(),
-            response.text().await.unwrap_or_default()
-        );
-        let payload: Value = response.json().await.unwrap();
-        let (eligible, items) = select(&payload, &r).unwrap();
+            .map_err(|error| error.to_string())?
+            .error_for_status()
+            .map_err(|error| error.to_string())?;
+        let payload: Value = response.json().await.map_err(|error| error.to_string())?;
+        let (eligible, items) = select(&payload, &r).map_err(|error| error.1)?;
+        let rows = payload["data"].as_array().ok_or("Archive data must be an array")?;
         eprintln!(
             "Live Arctic Shift: fetched={}, eligible={}, selected={}",
-            payload["data"].as_array().unwrap().len(),
+            rows.len(),
             eligible,
             items.len()
         );
+        Ok(())
     }
 
     #[sqlx::test(migrations = "../db")]
@@ -445,7 +583,9 @@ mod tests {
         .await
         .unwrap();
         let mut r = req();
-        let payload = json!({"data":[post("abc",5)]});
+        let payload = json!({
+            "data": [post("abc", 5)],
+        });
         let first = persist(&st, owner, &r, &payload).await.unwrap();
         let second = persist(&st, owner, &r, &payload).await.unwrap();
         assert_eq!(first["saved"], 1);

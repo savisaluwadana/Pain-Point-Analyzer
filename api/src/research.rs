@@ -85,9 +85,11 @@ pub async fn delete_project(
             "Project not found".into(),
         ));
     }
-    Ok(Json(
-        json!({"deleted":true,"project_id":id,"notice":"Project deleted. Associated evidence and reports were preserved as unassigned."}),
-    ))
+    Ok(Json(json!({
+        "deleted": true,
+        "project_id": id,
+        "notice": "Project deleted. Associated evidence and reports were preserved as unassigned.",
+    })))
 }
 
 #[derive(Deserialize)]
@@ -121,8 +123,18 @@ pub async fn evidence(
     Query(q): Query<EvidenceQuery>,
 ) -> ApiResult<Json<Vec<EvidenceRow>>> {
     let uid = oauth::user_id(&st, &headers).await?;
-    let rows=sqlx::query_as("SELECT id,source_kind,source_id,source_url,title,body,metadata,collected_at FROM evidence WHERE owner_id=$1 AND ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM evidence_projects ep WHERE ep.owner_id=evidence.owner_id AND ep.evidence_id=evidence.id AND ep.project_id=$2)) ORDER BY collected_at DESC LIMIT $3")
-   .bind(uid).bind(q.project_id).bind(q.limit.unwrap_or(100).clamp(1,500)).fetch_all(&st.db).await.map_err(internal)?;
+    let rows = sqlx::query_as(
+        "SELECT id,source_kind,source_id,source_url,title,body,metadata,collected_at FROM evidence WHERE \
+            owner_id=$1 AND ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM evidence_projects ep WHERE \
+            ep.owner_id=evidence.owner_id AND ep.evidence_id=evidence.id AND ep.project_id=$2)) ORDER BY \
+            collected_at DESC LIMIT $3",
+    )
+    .bind(uid)
+    .bind(q.project_id)
+    .bind(q.limit.unwrap_or(100).clamp(1, 500))
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
     Ok(Json(rows))
 }
 pub(crate) async fn assert_project(st: &AppState, uid: Uuid, project: Option<Uuid>) -> ApiResult<()> {
@@ -183,11 +195,26 @@ pub async fn ingest_evidence(
     let title = body.title.unwrap_or_default().chars().take(500).collect::<String>();
     let text = body.body.unwrap_or_default().chars().take(10000).collect::<String>();
     let mut tx = st.db.begin().await.map_err(internal)?;
-    let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,title=excluded.title,body=excluded.body,collected_at=now() RETURNING id")
-  .bind(uid).bind(body.project_id).bind(&body.source_kind).bind(&body.source_id).bind(&body.source_url).bind(title).bind(text).fetch_one(&mut *tx).await.map_err(internal)?;
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body) VALUES($1,$2,$3,$4,\
+            $5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET \
+            project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,\
+            title=excluded.title,body=excluded.body,collected_at=now() RETURNING id",
+    )
+    .bind(uid)
+    .bind(body.project_id)
+    .bind(&body.source_kind)
+    .bind(&body.source_id)
+    .bind(&body.source_url)
+    .bind(title)
+    .bind(text)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(internal)?;
+
     link_project(&mut tx, uid, id, body.project_id).await?;
     tx.commit().await.map_err(internal)?;
-    Ok(Json(json!({"id":id})))
+    Ok(Json(json!({ "id": id })))
 }
 #[derive(Deserialize)]
 pub struct ScanInput {
@@ -215,11 +242,29 @@ pub(crate) async fn persist_posts(
     for post in posts {
         let url = format!("https://www.reddit.com{}", post.permalink);
         let published = DateTime::from_timestamp(post.created_utc as i64, 0);
-        let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,author,published_at,metadata) VALUES($1,$2,'reddit',$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,title=excluded.title,body=excluded.body,author=excluded.author,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
-    .bind(uid).bind(project).bind(format!("t3_{}",post.id)).bind(url)
-    .bind(post.title.chars().take(500).collect::<String>()).bind(post.selftext.chars().take(10000).collect::<String>())
-    .bind(None::<String>).bind(published).bind(json!({"subreddit":post.subreddit,"score":post.score,"num_comments":post.num_comments}))
-    .fetch_one(&mut *tx).await.map_err(internal)?;
+        let id: Uuid = sqlx::query_scalar(
+            "INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,title,body,author,\
+                published_at,metadata) VALUES($1,$2,'reddit',$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(owner_id,source_kind,\
+                source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),\
+                source_url=excluded.source_url,title=excluded.title,body=excluded.body,author=excluded.author,\
+                published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id",
+        )
+        .bind(uid)
+        .bind(project)
+        .bind(format!("t3_{}", post.id))
+        .bind(url)
+        .bind(post.title.chars().take(500).collect::<String>())
+        .bind(post.selftext.chars().take(10000).collect::<String>())
+        .bind(None::<String>)
+        .bind(published)
+        .bind(json!({
+            "subreddit": post.subreddit,
+            "score": post.score,
+            "num_comments": post.num_comments,
+        }))
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(internal)?;
         link_project(&mut tx, uid, id, project).await?;
     }
     tx.commit().await.map_err(internal)?;
@@ -234,7 +279,10 @@ pub async fn scan(
     assert_project(&st, uid, body.project_id).await?;
     let posts = reddit::fetch_posts(&st, uid, &body.subreddit, body.limit.unwrap_or(25).clamp(1, 100)).await?;
     let saved = persist_posts(&st, uid, posts, body.project_id).await?;
-    Ok(Json(json!({"saved":saved,"subreddit":body.subreddit})))
+    Ok(Json(json!({
+        "saved": saved,
+        "subreddit": body.subreddit,
+    })))
 }
 #[derive(Deserialize)]
 pub struct AnalyzeInput {
@@ -252,12 +300,20 @@ pub async fn analyze(
         return Err(bad("Provide a research topic of 1-500 characters"));
     }
     let terms = scoring::topic_terms(&body.topic);
-    let rows:Vec<(Uuid,String,String,String,String)>=sqlx::query_as(
-  "SELECT id,source_kind,source_id,title,body FROM evidence WHERE owner_id=$1 AND
-   ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM evidence_projects ep WHERE ep.owner_id=evidence.owner_id AND ep.evidence_id=evidence.id AND ep.project_id=$2))
-   AND (cardinality($3::text[])=0 OR EXISTS(SELECT 1 FROM unnest($3::text[]) AS keyword(word) WHERE strpos(lower(title || E'\\n' || body),word)>0))
-   ORDER BY collected_at DESC LIMIT 1000")
-   .bind(uid).bind(body.project_id).bind(&terms).fetch_all(&st.db).await.map_err(internal)?;
+    let rows: Vec<(Uuid, String, String, String, String)> = sqlx::query_as(
+        "SELECT id,source_kind,source_id,title,body FROM evidence WHERE owner_id=$1 AND
+   ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM evidence_projects ep WHERE ep.owner_id=evidence.owner_id AND \
+            ep.evidence_id=evidence.id AND ep.project_id=$2))
+   AND (cardinality($3::text[])=0 OR EXISTS(SELECT 1 FROM unnest($3::text[]) AS keyword(word) WHERE \
+            strpos(lower(title || E'\\n' || body),word)>0))
+   ORDER BY collected_at DESC LIMIT 1000",
+    )
+    .bind(uid)
+    .bind(body.project_id)
+    .bind(&terms)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
     let items = rows
         .into_iter()
         .map(|(id, source_kind, source_id, title, body)| EvidenceText {
@@ -298,7 +354,10 @@ pub async fn analyze(
         .map_err(internal)?;
     }
     tx.commit().await.map_err(internal)?;
-    Ok(Json(json!({"run_id":run_id,"report":report})))
+    Ok(Json(json!({
+        "run_id": run_id,
+        "report": report,
+    })))
 }
 #[derive(Serialize, FromRow)]
 pub struct RunRow {
@@ -310,7 +369,14 @@ pub struct RunRow {
 }
 pub async fn runs(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<Json<Vec<RunRow>>> {
     let uid = oauth::user_id(&st, &headers).await?;
-    let rows=sqlx::query_as("SELECT id,project_id,topic,report,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 100").bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+    let rows = sqlx::query_as(
+        "SELECT id,project_id,topic,report,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC \
+            LIMIT 100",
+    )
+    .bind(uid)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
     Ok(Json(rows))
 }
 #[derive(Serialize, FromRow)]
@@ -330,8 +396,16 @@ pub async fn opportunities(
 ) -> ApiResult<Json<Vec<OpportunityRow>>> {
     let uid = oauth::user_id(&st, &headers).await?;
     assert_project(&st, uid, q.project_id).await?;
-    let rows=sqlx::query_as("SELECT o.id,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.created_at FROM opportunities o LEFT JOIN research_runs r ON o.run_id=r.id WHERE o.owner_id=$1 AND ($2::uuid IS NULL OR r.project_id=$2) ORDER BY o.score DESC,o.created_at DESC LIMIT 100")
-   .bind(uid).bind(q.project_id).fetch_all(&st.db).await.map_err(internal)?;
+    let rows = sqlx::query_as(
+        "SELECT o.id,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.created_at FROM opportunities o LEFT \
+            JOIN research_runs r ON o.run_id=r.id WHERE o.owner_id=$1 AND ($2::uuid IS NULL OR r.project_id=$2) \
+            ORDER BY o.score DESC,o.created_at DESC LIMIT 100",
+    )
+    .bind(uid)
+    .bind(q.project_id)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
     Ok(Json(rows))
 }
 
@@ -354,9 +428,11 @@ pub async fn delete_evidence(
             "Evidence not found".into(),
         ));
     }
-    Ok(Json(
-        json!({"deleted":true,"id":id,"notice":"Previously saved research runs are snapshots and will not be recalculated automatically."}),
-    ))
+    Ok(Json(json!({
+        "deleted": true,
+        "id": id,
+        "notice": "Previously saved research runs are snapshots and will not be recalculated automatically.",
+    })))
 }
 pub async fn export_data(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<Response> {
     let uid = oauth::user_id(&st, &headers).await?;
@@ -365,21 +441,49 @@ pub async fn export_data(State(st): State<AppState>, headers: HeaderMap) -> ApiR
         .fetch_one(&st.db)
         .await
         .map_err(internal)?;
-    let projects:Vec<Value>=sqlx::query_scalar(
-   "SELECT to_jsonb(t) FROM (SELECT id,name,description,created_at FROM projects WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")
-  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
-    let evidence:Vec<Value>=sqlx::query_scalar(
-   "SELECT to_jsonb(t) FROM (SELECT id,project_id,source_kind,source_id,source_url,CASE WHEN source_kind IN ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') THEN NULL ELSE title END AS title,CASE WHEN source_kind IN ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') THEN NULL ELSE body END AS body,published_at,collected_at,metadata FROM evidence WHERE owner_id=$1 ORDER BY collected_at DESC LIMIT 5001) t")
-  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
-    let runs:Vec<Value>=sqlx::query_scalar(
-   "SELECT to_jsonb(t) FROM (SELECT id,project_id,topic,report,status,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")
-  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
-    let opportunities:Vec<Value>=sqlx::query_scalar(
-   "SELECT to_jsonb(t) FROM (SELECT id,run_id,title,problem,score,evidence_refs,created_at FROM opportunities WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t")
-  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
-    let records:Vec<Value>=sqlx::query_scalar(
-   "SELECT to_jsonb(t) FROM (SELECT kind,id,payload,created_at,updated_at FROM mcp_records WHERE owner_id=$1 ORDER BY updated_at DESC LIMIT 5001) t")
-  .bind(uid).fetch_all(&st.db).await.map_err(internal)?;
+    let projects: Vec<Value> = sqlx::query_scalar(
+        "SELECT to_jsonb(t) FROM (SELECT id,name,description,created_at FROM projects WHERE owner_id=$1 ORDER BY \
+            created_at DESC LIMIT 5001) t",
+    )
+    .bind(uid)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
+    let evidence: Vec<Value> = sqlx::query_scalar(
+        "SELECT to_jsonb(t) FROM (SELECT id,project_id,source_kind,source_id,source_url,CASE WHEN source_kind IN \
+            ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') THEN NULL ELSE title END AS title,\
+            CASE WHEN source_kind IN ('reddit','reddit-comment','reddit-archive','reddit-archive-comment') THEN \
+            NULL ELSE body END AS body,published_at,collected_at,metadata FROM evidence WHERE owner_id=$1 ORDER BY \
+            collected_at DESC LIMIT 5001) t",
+    )
+    .bind(uid)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
+    let runs: Vec<Value> = sqlx::query_scalar(
+        "SELECT to_jsonb(t) FROM (SELECT id,project_id,topic,report,status,created_at FROM research_runs WHERE \
+            owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t",
+    )
+    .bind(uid)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
+    let opportunities: Vec<Value> = sqlx::query_scalar(
+        "SELECT to_jsonb(t) FROM (SELECT id,run_id,title,problem,score,evidence_refs,created_at FROM opportunities \
+            WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t",
+    )
+    .bind(uid)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
+    let records: Vec<Value> = sqlx::query_scalar(
+        "SELECT to_jsonb(t) FROM (SELECT kind,id,payload,created_at,updated_at FROM mcp_records WHERE owner_id=$1 \
+            ORDER BY updated_at DESC LIMIT 5001) t",
+    )
+    .bind(uid)
+    .fetch_all(&st.db)
+    .await
+    .map_err(internal)?;
     let truncated = projects.len() > 5000
         || evidence.len() > 5000
         || runs.len() > 5000
@@ -389,15 +493,25 @@ pub async fn export_data(State(st): State<AppState>, headers: HeaderMap) -> ApiR
         items.truncate(5000);
         items
     };
-    let mut response=Json(json!({
-  "format":"pain-intelligence-lab-v1",
-  "exported_at":Utc::now().to_rfc3339(),
-  "account":{"id":uid,"reddit_username":name},
-  "projects":take(projects),"evidence":take(evidence),
-  "research_runs":take(runs),"opportunities":take(opportunities),"host_records":take(records),
-  "truncated":truncated,
-  "notes":["OAuth tokens, user sessions, MCP API secrets and Reddit post/comment body text are excluded","Each collection is limited to 5000 records; if truncated=true, contact the operator for a full export"]
- })).into_response();
+    let mut response = Json(json!({
+        "format": "pain-intelligence-lab-v1",
+        "exported_at": Utc::now().to_rfc3339(),
+        "account": {
+            "id": uid,
+            "reddit_username": name,
+        },
+        "projects": take(projects),
+        "evidence": take(evidence),
+        "research_runs": take(runs),
+        "opportunities": take(opportunities),
+        "host_records": take(records),
+        "truncated": truncated,
+        "notes": [
+            "OAuth tokens, user sessions, MCP API secrets and Reddit post/comment body text are excluded",
+            "Each collection is limited to 5000 records; if truncated=true, contact the operator for a full export",
+        ],
+    }))
+    .into_response();
     response
         .headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static("private, no-store"));
@@ -422,7 +536,13 @@ pub async fn delete_data(State(st): State<AppState>, headers: HeaderMap) -> ApiR
         .execute(&st.db)
         .await
         .map_err(internal)?;
-    let mut response=Json(json!({"deleted":true,"provider_token_revocation_confirmed":revoked,"action":"Your stored account, credentials, evidence, research and sessions were deleted. If provider revocation was not confirmed, revoke the app in Reddit settings."})).into_response();
+    let mut response = Json(json!({
+        "deleted": true,
+        "provider_token_revocation_confirmed": revoked,
+        "action": "Your stored account, credentials, evidence, research and sessions were deleted. If provider \
+            revocation was not confirmed, revoke the app in Reddit settings.",
+    }))
+    .into_response();
     response.headers_mut().insert(
         SET_COOKIE,
         HeaderValue::from_static("pil_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"),
@@ -466,12 +586,31 @@ pub async fn thread(
             format!("https://www.reddit.com/comments/{}", body.post_id)
         };
         let published = DateTime::from_timestamp(item.created_utc as i64, 0);
-        let id:Uuid=sqlx::query_scalar("INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,body,published_at,metadata) VALUES($1,$2,'reddit-comment',$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() RETURNING id")
-     .bind(uid).bind(body.project_id).bind(source_id).bind(url).bind(item.body)
-     .bind(published).bind(json!({"thread_id":body.post_id,"score":item.score}))
-     .fetch_one(&mut *tx).await.map_err(internal)?;
+        let id: Uuid = sqlx::query_scalar(
+            "INSERT INTO evidence(owner_id,project_id,source_kind,source_id,source_url,body,published_at,metadata) \
+                VALUES($1,$2,'reddit-comment',$3,$4,$5,$6,$7) ON CONFLICT(owner_id,source_kind,source_id) DO UPDATE \
+                SET project_id=COALESCE(evidence.project_id,excluded.project_id),source_url=excluded.source_url,\
+                body=excluded.body,published_at=excluded.published_at,metadata=excluded.metadata,collected_at=now() \
+                RETURNING id",
+        )
+        .bind(uid)
+        .bind(body.project_id)
+        .bind(source_id)
+        .bind(url)
+        .bind(item.body)
+        .bind(published)
+        .bind(json!({
+            "thread_id": body.post_id,
+            "score": item.score,
+        }))
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(internal)?;
         link_project(&mut tx, uid, id, body.project_id).await?;
     }
     tx.commit().await.map_err(internal)?;
-    Ok(Json(json!({"saved":count,"thread_id":body.post_id})))
+    Ok(Json(json!({
+        "saved": count,
+        "thread_id": body.post_id,
+    })))
 }
