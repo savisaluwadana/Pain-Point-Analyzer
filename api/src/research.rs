@@ -287,6 +287,7 @@ pub async fn scan(
 #[derive(Deserialize)]
 pub struct AnalyzeInput {
     topic: String,
+    limit: Option<i64>,
     project_id: Option<Uuid>,
 }
 pub async fn analyze(
@@ -300,31 +301,45 @@ pub async fn analyze(
         return Err(bad("Provide a research topic of 1-500 characters"));
     }
     let terms = scoring::topic_terms(&body.topic);
-    let rows: Vec<(Uuid, String, String, String, String)> = sqlx::query_as(
-        "SELECT id,source_kind,source_id,title,body FROM evidence WHERE owner_id=$1 AND
+    let analysis_limit = body.limit.unwrap_or(1000).clamp(1, 10_000);
+    let rows: Vec<(Uuid, String, String, String, String, i64, Value)> = sqlx::query_as(
+        "SELECT id,source_kind,source_id,title,body,count(*) OVER(),metadata FROM evidence WHERE owner_id=$1 AND
    ($2::uuid IS NULL OR EXISTS(SELECT 1 FROM evidence_projects ep WHERE ep.owner_id=evidence.owner_id AND \
             ep.evidence_id=evidence.id AND ep.project_id=$2))
    AND (cardinality($3::text[])=0 OR EXISTS(SELECT 1 FROM unnest($3::text[]) AS keyword(word) WHERE \
-            strpos(lower(title || E'\\n' || body),word)>0))
-   ORDER BY collected_at DESC LIMIT 1000",
+            (word = ANY(regexp_split_to_array(lower(title || E'\\n' || body), '[^[:alnum:]]+')) OR \
+            (length(word)>5 AND right(word,3)='ing' AND left(word,length(word)-3)||'e' = \
+            ANY(regexp_split_to_array(lower(title || E'\\n' || body), '[^[:alnum:]]+'))))))
+   ORDER BY collected_at DESC,id DESC LIMIT $4",
     )
     .bind(uid)
     .bind(body.project_id)
     .bind(&terms)
+    .bind(analysis_limit)
     .fetch_all(&st.db)
     .await
     .map_err(internal)?;
+    let candidate_count = rows.first().map_or(0, |row| row.5);
+    let selected_count = rows.len();
     let items = rows
         .into_iter()
-        .map(|(id, source_kind, source_id, title, body)| EvidenceText {
+        .map(|(id, source_kind, source_id, title, body, _, metadata)| EvidenceText {
             id,
+            source_id: scoring::analysis_source_id(&source_kind, &source_id, &metadata),
             source_kind,
-            source_id,
             text: format!("{title}\n{body}"),
         })
         .collect::<Vec<_>>();
     let relevant = scoring::relevant_to_topic(&items, &body.topic);
-    let report = scoring::analyze(&relevant);
+    let relevant_count = relevant.len();
+    let report = scoring::analyze_async(relevant).await?;
+    let mut report_json = json!(&report);
+    report_json["coverage"] = json!({
+        "candidate_count": candidate_count, "selected_count": selected_count,
+        "omitted_count": candidate_count.saturating_sub(selected_count as i64),
+        "topic_excluded_count": selected_count.saturating_sub(relevant_count),
+        "limit": analysis_limit, "selection": "latest lexical topic candidates",
+    });
     let mut tx = st.db.begin().await.map_err(internal)?;
     let run_id: Uuid = sqlx::query_scalar(
         "INSERT INTO research_runs(owner_id,project_id,topic,report) VALUES($1,$2,$3,$4) RETURNING id",
@@ -332,7 +347,7 @@ pub async fn analyze(
     .bind(uid)
     .bind(body.project_id)
     .bind(body.topic.trim())
-    .bind(json!(&report))
+    .bind(&report_json)
     .fetch_one(&mut *tx)
     .await
     .map_err(internal)?;
@@ -344,8 +359,9 @@ pub async fn analyze(
         .bind(run_id)
         .bind(&cluster.category)
         .bind(format!(
-            "{} independent observed stories; requires validation",
-            cluster.independent_stories
+            "{} independent discussions across {} source families. {} Review source evidence and existing solutions before proposing a project.",
+            cluster.independent_stories, cluster.source_families,
+            if cluster.sufficient_evidence { "Requires independent validation." } else { "Insufficient recurring evidence." }
         ))
         .bind(cluster.severity_score)
         .bind(json!(&cluster.evidence_ids))
@@ -354,9 +370,10 @@ pub async fn analyze(
         .map_err(internal)?;
     }
     tx.commit().await.map_err(internal)?;
+    hydrate_report(&st, uid, &mut report_json).await?;
     Ok(Json(json!({
         "run_id": run_id,
-        "report": report,
+        "report": report_json,
     })))
 }
 #[derive(Serialize, FromRow)]
@@ -369,7 +386,7 @@ pub struct RunRow {
 }
 pub async fn runs(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<Json<Vec<RunRow>>> {
     let uid = oauth::user_id(&st, &headers).await?;
-    let rows = sqlx::query_as(
+    let mut rows: Vec<RunRow> = sqlx::query_as(
         "SELECT id,project_id,topic,report,created_at FROM research_runs WHERE owner_id=$1 ORDER BY created_at DESC \
             LIMIT 100",
     )
@@ -377,11 +394,16 @@ pub async fn runs(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<J
     .fetch_all(&st.db)
     .await
     .map_err(internal)?;
+    for row in &mut rows {
+        hydrate_report(&st, uid, &mut row.report).await?;
+    }
     Ok(Json(rows))
 }
 #[derive(Serialize, FromRow)]
 pub struct OpportunityRow {
     id: Uuid,
+    run_id: Option<Uuid>,
+    score_version: Option<i64>,
     project_id: Option<Uuid>,
     title: String,
     problem: String,
@@ -397,9 +419,9 @@ pub async fn opportunities(
     let uid = oauth::user_id(&st, &headers).await?;
     assert_project(&st, uid, q.project_id).await?;
     let rows = sqlx::query_as(
-        "SELECT o.id,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.created_at FROM opportunities o LEFT \
+        "SELECT o.id,o.run_id,(r.report->>'score_version')::bigint AS score_version,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.created_at FROM opportunities o LEFT \
             JOIN research_runs r ON o.run_id=r.id WHERE o.owner_id=$1 AND ($2::uuid IS NULL OR r.project_id=$2) \
-            ORDER BY o.score DESC,o.created_at DESC LIMIT 100",
+            ORDER BY o.created_at DESC,o.run_id,o.score DESC,o.id LIMIT 100",
     )
     .bind(uid)
     .bind(q.project_id)
@@ -613,4 +635,48 @@ pub async fn thread(
         "saved": count,
         "thread_id": body.post_id,
     })))
+}
+
+/// Hydrate short quotations only from currently owned, unchanged evidence.
+/// Saved reports and exports contain IDs/hashes, so deletion cannot leave copied text behind.
+pub(crate) async fn hydrate_report(st: &AppState, owner: Uuid, report: &mut Value) -> ApiResult<()> {
+    let Some(clusters) = report["clusters"].as_array_mut() else {
+        return Ok(());
+    };
+    let ids: Vec<Uuid> = clusters
+        .iter()
+        .take(8)
+        .flat_map(|c| c["example_refs"].as_array().into_iter().flatten().take(5))
+        .filter_map(|r| r["evidence_id"].as_str().and_then(|id| Uuid::parse_str(id).ok()))
+        .collect();
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let rows: Vec<(Uuid, String, String, String)> =
+        sqlx::query_as("SELECT id,title,body,source_url FROM evidence WHERE owner_id=$1 AND id=ANY($2)")
+            .bind(owner)
+            .bind(&ids)
+            .fetch_all(&st.db)
+            .await
+            .map_err(internal)?;
+    for cluster in clusters.iter_mut().take(8) {
+        let refs = cluster["example_refs"].as_array().cloned().unwrap_or_default();
+        cluster["supporting_evidence"] = json!(refs
+            .iter()
+            .take(5)
+            .map(|r| {
+                let id = r["evidence_id"].as_str().unwrap_or("");
+                let found = rows.iter().find(|row| row.0.to_string() == id);
+                if let Some((_, title, body, url)) = found {
+                    let text = format!("{title}\n{body}");
+                    if r["content_hash"].as_str() == Some(scoring::content_hash(&text).as_str()) {
+                        return json!({"evidence_id": id, "available": true,
+                        "excerpt": text.chars().take(240).collect::<String>(), "source_url": url});
+                    }
+                }
+                json!({"evidence_id": id, "available": false})
+            })
+            .collect::<Vec<_>>());
+    }
+    Ok(())
 }

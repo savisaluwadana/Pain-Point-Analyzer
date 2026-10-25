@@ -191,8 +191,32 @@ async fn fetch_bytes(client: &Client, source: &str, url: Url, auth: Option<(&str
 }
 async fn get_json(client: &Client, source: &str, url: Url, auth: Option<(&str, String)>) -> ApiResult<Value> {
     let bytes = fetch_bytes(client, source, url, auth).await?;
-    serde_json::from_slice(&bytes)
-        .map_err(|_| ApiError(StatusCode::BAD_GATEWAY, format!("{source} returned malformed JSON")))
+    let value = serde_json::from_slice(&bytes)
+        .map_err(|_| ApiError(StatusCode::BAD_GATEWAY, format!("{source} returned malformed JSON")))?;
+    validate_payload(source, &value)?;
+    Ok(value)
+}
+// Missing result containers are provider-contract failures, not successful empty searches.
+fn validate_payload(source: &str, value: &Value) -> ApiResult<()> {
+    if source == "stackoverflow" && value["backoff"].as_u64().is_some() {
+        return Err(ApiError(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Stack Exchange requires provider backoff".into(),
+        ));
+    }
+    let field = match source {
+        "github" | "stackoverflow" | "youtube" => "items",
+        "hackernews" => "hits",
+        "bluesky" | "discourse" => "posts",
+        _ => return Err(bad("Unsupported JSON provider")),
+    };
+    if !value[field].is_array() {
+        return Err(ApiError(
+            StatusCode::BAD_GATEWAY,
+            format!("{source} returned an unexpected response shape"),
+        ));
+    }
+    Ok(())
 }
 fn uri(base: &str, pairs: &[(&str, &str)]) -> ApiResult<Url> {
     let mut url = Url::parse(base).map_err(internal)?;
@@ -260,32 +284,7 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
                 .filter(|x| !x.is_empty())
                 .map(|x| ("Authorization", format!("Bearer {x}")));
             let v = get_json(&client, source, u, auth).await?;
-            v["items"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|x| {
-                            let url = raw(x, "/html_url");
-                            if !url.starts_with("https://github.com/") {
-                                return None;
-                            }
-                            Some(Finding {
-                                id: raw(x, "/node_id"),
-                                title: raw(x, "/title"),
-                                body: short(&raw(x, "/body"), 1200),
-                                url,
-                                published: get_date(&raw(x, "/created_at")),
-                                metadata: json!({
-                                    "repository": raw(x, "/repository_url"),
-                                    "comments": x["comments"],
-                                    "state": x["state"],
-                                    "source": "GitHub public Issues",
-                                }),
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
+            github_findings(&v)
         }
         "hackernews" => {
             // Community-maintained Algolia full-text index of public Hacker News data.
@@ -294,30 +293,7 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
                 &[("query", q), ("tags", "comment"), ("hitsPerPage", &n)],
             )?;
             let v = get_json(&client, source, u, None).await?;
-            v["hits"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|x| {
-                            let id = raw(x, "/objectID");
-                            if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
-                                return None;
-                            }
-                            Some(Finding {
-                                id: id.clone(),
-                                title: format!("HN discussion on {q}"),
-                                body: html_text(&raw(x, "/comment_text")),
-                                url: format!("https://news.ycombinator.com/item?id={id}"),
-                                published: get_date(&raw(x, "/created_at")),
-                                metadata: json!({
-                                    "story_id": x["story_id"],
-                                    "index": "Algolia HN Search (third-party)",
-                                }),
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
+            hackernews_findings(&v, q)
         }
         "stackoverflow" => {
             let u = uri(
@@ -338,34 +314,7 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
                     "Stack Exchange requires a backoff before making another request".into(),
                 ));
             }
-            v["items"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|x| {
-                            let url = raw(x, "/link");
-                            let id = x["question_id"].as_i64()?;
-                            if !url.starts_with("https://stackoverflow.com/") {
-                                return None;
-                            }
-                            Some(Finding {
-                                id: id.to_string(),
-                                title: html_text(&raw(x, "/title")),
-                                body: html_text(&raw(x, "/body")),
-                                url,
-                                published: x["creation_date"].as_i64().and_then(|t| DateTime::from_timestamp(t, 0)),
-                                metadata: json!({
-                                    "score": x["score"],
-                                    "tags": x["tags"],
-                                    "author": raw(x, "/owner/display_name"),
-                                    "license": "CC BY-SA; version depends on post date",
-                                    "license_url": "https://stackoverflow.com/help/licensing",
-                                }),
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
+            stackoverflow_findings(&v)
         }
         "bluesky" => {
             // public.api.bsky.app is a cached mirror that answers searchPosts with 403;
@@ -392,105 +341,19 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
             }
             let u = uri("https://www.googleapis.com/youtube/v3/commentThreads", &args)?;
             let v = get_json(&client, source, u, None).await?;
-            v["items"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|x| {
-                            let comment_id = raw(x, "/snippet/topLevelComment/id");
-                            if comment_id.is_empty()
-                                || !comment_id
-                                    .bytes()
-                                    .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
-                            {
-                                return None;
-                            }
-
-                            let comment = &x["snippet"]["topLevelComment"]["snippet"];
-                            Some(Finding {
-                                id: comment_id.clone(),
-                                title: format!("YouTube comment on {id}"),
-                                body: short(&raw(comment, "/textOriginal"), 1200),
-
-                                url: format!("https://www.youtube.com/watch?v={id}&lc={comment_id}"),
-                                published: get_date(&raw(comment, "/publishedAt")),
-                                metadata: json!({
-                                    "video_id": id,
-                                    "like_count": comment["likeCount"],
-                                    "source": "YouTube Data API; provider policies apply",
-                                }),
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
+            youtube_findings(&v, id)
         }
         "discourse" => {
             let host = discourse_host(target)?;
             let u = uri(&format!("https://{host}/search.json"), &[("q", q)])?;
             let v = get_json(&client, source, u, None).await?;
-            v["posts"]
-                .as_array()
-                .map(|a| {
-                    a.iter()
-                        .take(limit)
-                        .filter_map(|x| {
-                            let post_id = x["id"].as_i64()?;
-                            let topic_id = x["topic_id"].as_i64()?;
-                            let post_number = x["post_number"].as_i64().unwrap_or(1);
-                            if post_id <= 0 || topic_id <= 0 || post_number <= 0 {
-                                return None;
-                            }
-                            Some(Finding {
-                                id: format!("{host}:{post_id}"),
-                                title: format!("Discourse discussion #{topic_id}"),
-                                body: html_text(&raw(x, "/blurb")),
-                                url: format!("https://{host}/t/{topic_id}/{post_number}"),
-                                published: get_date(&raw(x, "/created_at")),
-                                metadata: json!({
-                                    "forum": host,
-                                    "topic_id": topic_id,
-                                    "post_number": post_number,
-                                    "public_search": true
-                                }),
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default()
+            discourse_findings(&v, &host, limit)
         }
         "medium" => {
             let tag = medium_tag(q)?;
             let u = Url::parse(&format!("https://medium.com/feed/tag/{tag}")).map_err(internal)?;
             let body = fetch_bytes(&client, source, u, None).await?;
-            let channel = rss::Channel::read_from(&body[..])
-                .map_err(|_| ApiError(StatusCode::BAD_GATEWAY, "Medium returned an invalid RSS feed".into()))?;
-            channel
-                .items()
-                .iter()
-                .take(limit)
-                .filter_map(|x| {
-                    let url = x.link()?.to_string();
-                    if !url.starts_with("https://medium.com/") {
-                        return None;
-                    }
-                    Some(Finding {
-                        id: x.guid().map(|g| g.value()).unwrap_or(&url).to_owned(),
-                        title: x.title().unwrap_or("Medium article").to_owned(),
-                        body: html_text(x.description().unwrap_or("")),
-                        url,
-                        published: x
-                            .pub_date()
-                            .and_then(|d| DateTime::parse_from_rfc2822(d).ok())
-                            .map(|d| d.with_timezone(&Utc)),
-
-                        metadata: json!({
-                            "topic_tag": tag,
-                            "discovery": "Medium public RSS; excerpts only, no paywall bypass"
-                        }),
-                    })
-                })
-                .collect()
+            medium_findings(&body, tag, limit)?
         }
         _ => return Err(bad("Unsupported source")),
     };
@@ -795,5 +658,263 @@ mod tests {
         assert!(discourse_host("server.internal").is_err());
         assert!(html_text("<b>problem</b> &amp; workaround").contains("problem & workaround"));
         assert!(get_date("2026-10-13T01:00:00Z").is_some());
+    }
+}
+
+fn github_findings(v: &Value) -> Vec<Finding> {
+    v["items"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| {
+                    let url = raw(x, "/html_url");
+                    if !url.starts_with("https://github.com/") || raw(x, "/node_id").is_empty() {
+                        return None;
+                    }
+                    Some(Finding {
+                        id: raw(x, "/node_id"),
+                        title: raw(x, "/title"),
+                        body: short(&raw(x, "/body"), 1200),
+                        url,
+                        published: get_date(&raw(x, "/created_at")),
+                        metadata: json!({
+                            "repository": raw(x, "/repository_url"),
+                            "comments": x["comments"],
+                            "state": x["state"],
+                            "source": "GitHub public Issues",
+                        }),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn hackernews_findings(v: &Value, q: &str) -> Vec<Finding> {
+    v["hits"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| {
+                    let id = raw(x, "/objectID");
+                    if id.is_empty() || !id.bytes().all(|b| b.is_ascii_digit()) {
+                        return None;
+                    }
+                    Some(Finding {
+                        id: id.clone(),
+                        title: format!("HN discussion on {q}"),
+                        body: html_text(&raw(x, "/comment_text")),
+                        url: format!("https://news.ycombinator.com/item?id={id}"),
+                        published: get_date(&raw(x, "/created_at")),
+                        metadata: json!({
+                            "story_id": x["story_id"],
+                            "index": "Algolia HN Search (third-party)",
+                        }),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn stackoverflow_findings(v: &Value) -> Vec<Finding> {
+    v["items"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| {
+                    let url = raw(x, "/link");
+                    let id = x["question_id"].as_i64()?;
+                    if !url.starts_with("https://stackoverflow.com/") {
+                        return None;
+                    }
+                    Some(Finding {
+                        id: id.to_string(),
+                        title: html_text(&raw(x, "/title")),
+                        body: html_text(&raw(x, "/body")),
+                        url,
+                        published: x["creation_date"].as_i64().and_then(|t| DateTime::from_timestamp(t, 0)),
+                        metadata: json!({
+                            "score": x["score"],
+                            "tags": x["tags"],
+                            "author": raw(x, "/owner/display_name"),
+                            "license": "CC BY-SA; version depends on post date",
+                            "license_url": "https://stackoverflow.com/help/licensing",
+                        }),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn youtube_findings(v: &Value, id: &str) -> Vec<Finding> {
+    v["items"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| {
+                    let comment_id = raw(x, "/snippet/topLevelComment/id");
+                    if comment_id.is_empty()
+                        || !comment_id
+                            .bytes()
+                            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+                    {
+                        return None;
+                    }
+
+                    let comment = &x["snippet"]["topLevelComment"]["snippet"];
+                    Some(Finding {
+                        id: comment_id.clone(),
+                        title: format!("YouTube comment on {id}"),
+                        body: short(&raw(comment, "/textOriginal"), 1200),
+
+                        url: format!("https://www.youtube.com/watch?v={id}&lc={comment_id}"),
+                        published: get_date(&raw(comment, "/publishedAt")),
+                        metadata: json!({
+                            "video_id": id,
+                            "like_count": comment["likeCount"],
+                            "source": "YouTube Data API; provider policies apply",
+                        }),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn discourse_findings(v: &Value, host: &str, limit: usize) -> Vec<Finding> {
+    v["posts"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .take(limit)
+                .filter_map(|x| {
+                    let post_id = x["id"].as_i64()?;
+                    let topic_id = x["topic_id"].as_i64()?;
+                    let post_number = x["post_number"].as_i64().unwrap_or(1);
+                    if post_id <= 0 || topic_id <= 0 || post_number <= 0 {
+                        return None;
+                    }
+                    Some(Finding {
+                        id: format!("{host}:{post_id}"),
+                        title: format!("Discourse discussion #{topic_id}"),
+                        body: html_text(&raw(x, "/blurb")),
+                        url: format!("https://{host}/t/{topic_id}/{post_number}"),
+                        published: get_date(&raw(x, "/created_at")),
+                        metadata: json!({
+                            "forum": host,
+                            "topic_id": topic_id,
+                            "post_number": post_number,
+                            "public_search": true
+                        }),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+    #[test]
+    fn provider_shapes_distinguish_empty_results_from_breakage() {
+        for (provider, field) in [
+            ("github", "items"),
+            ("hackernews", "hits"),
+            ("stackoverflow", "items"),
+            ("youtube", "items"),
+            ("discourse", "posts"),
+            ("bluesky", "posts"),
+        ] {
+            assert!(validate_payload(provider, &json!({field: []})).is_ok());
+            assert!(validate_payload(provider, &json!({"error": "upstream changed"})).is_err());
+            assert!(validate_payload(provider, &json!({field: {}})).is_err());
+        }
+    }
+    #[test]
+    fn json_adapters_parse_synthetic_records_and_reject_bad_identifiers() {
+        let gh = github_findings(
+            &json!({"items":[{"node_id":"fictional", "html_url":"https://github.com/example/demo/issues/1", "body":"slow", "title":"Fictional issue"},
+            {"html_url":"https://github.com/example/demo/issues/2"}]}),
+        );
+        assert_eq!(gh.len(), 1);
+        assert_eq!(gh[0].body, "slow");
+        let hn = hackernews_findings(
+            &json!({"hits":[{"objectID":"123","comment_text":"<p>slow &amp; expensive</p>","story_id":12}, {"objectID":"bad/id"}]}),
+            "demo",
+        );
+        assert_eq!(hn.len(), 1);
+        assert_eq!(hn[0].body, "slow & expensive");
+        let so = stackoverflow_findings(
+            &json!({"items":[{"question_id":1,"link":"https://stackoverflow.com/questions/1","body":"<b>fictional</b>"}]}),
+        );
+        assert_eq!(so.len(), 1);
+        assert!(so[0].metadata["license"].is_string());
+        let yt = youtube_findings(
+            &json!({"items":[{"snippet":{"topLevelComment":{"id":"synthetic","snippet":{"textOriginal":"slow"}}}}]}),
+            "abcdefghijk",
+        );
+        assert_eq!(yt.len(), 1);
+        assert!(yt[0].url.ends_with("lc=synthetic"));
+        let forum = discourse_findings(
+            &json!({"posts":[{"id":1,"topic_id":2,"post_number":1,"blurb":"fictional"}, {"id":-1,"topic_id":2}]}),
+            "forum.example.org",
+            25,
+        );
+        assert_eq!(forum.len(), 1);
+        assert!(forum[0].url.ends_with("/t/2/1"));
+    }
+    #[test]
+    fn plain_text_excerpts_are_bounded() {
+        assert!(html_text(&"é".repeat(2000)).chars().count() <= 1200);
+        assert_eq!(html_text("<script>plain text only</script>"), "plain text only");
+    }
+}
+
+fn medium_findings(body: &[u8], tag: &str, limit: usize) -> ApiResult<Vec<Finding>> {
+    let channel = rss::Channel::read_from(body)
+        .map_err(|_| ApiError(StatusCode::BAD_GATEWAY, "Medium returned an invalid RSS feed".into()))?;
+    Ok(channel
+        .items()
+        .iter()
+        .take(limit)
+        .filter_map(|x| {
+            let url = x.link()?.to_string();
+            if !url.starts_with("https://medium.com/") {
+                return None;
+            }
+            Some(Finding {
+                id: x.guid().map(|g| g.value()).unwrap_or(&url).to_owned(),
+                title: x.title().unwrap_or("Medium article").to_owned(),
+                body: html_text(x.description().unwrap_or("")),
+                url,
+                published: x
+                    .pub_date()
+                    .and_then(|d| DateTime::parse_from_rfc2822(d).ok())
+                    .map(|d| d.with_timezone(&Utc)),
+
+                metadata: json!({
+                    "topic_tag": tag,
+                    "discovery": "Medium public RSS; excerpts only, no paywall bypass"
+                }),
+            })
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod rss_contract_tests {
+    use super::*;
+    #[test]
+    fn rss_requires_valid_feed_and_retains_only_allowed_excerpt_links() {
+        let feed = br#"<?xml version="1.0"?><rss version="2.0"><channel><title>Fictional fixture</title><link>https://medium.com/</link><description>Invented</description>
+            <item><title>Example</title><link>https://medium.com/example</link><description>&lt;p&gt;slow &amp;amp; expensive&lt;/p&gt;</description></item>
+            <item><title>Wrong host</title><link>https://example.com/</link></item></channel></rss>"#;
+        let parsed = medium_findings(feed, "example", 25).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].body, "slow & expensive");
+        assert!(medium_findings(b"not RSS", "example", 25).is_err());
     }
 }

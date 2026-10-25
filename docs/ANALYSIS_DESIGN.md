@@ -1,8 +1,13 @@
 # Analysis design proposal
 
-Status: **Phase 3, Step A — awaiting approval.** This document proposes changes; none of the engines, schemas, routes,
-tools or UI described as proposed below have been implemented. Phase 3 implementation and evaluation start only after
-approval. Phase 4 remains separate.
+Status: **Phase 3 foundation implemented; semantic inference remains proposed.** The keyword engine now has
+word/phrase boundaries, limited clause negation, stable transitive copy/thread grouping, versioned logarithmic
+ranking, explicit coverage and up to 10,000-record opt-in budgets. Supporting excerpts are hydrated from currently
+owned evidence rather than stored in reports. HTTP and MCP analysis share a single CPU-work permit.
+
+The embedding model, cache, semantic clustering, recency-weighted ranking, full held-out semantic evaluation and
+cross-architecture packaging described below are **not implemented**. The current `keywords-v2` formula is documented
+in [analysis quality](ANALYSIS_QUALITY.md). The original review below describes the pre-fix baseline, not current code.
 
 ## Recommendation
 
@@ -283,8 +288,7 @@ scope.
 Checked while preparing this proposal. Pin exact versions and artifact digests in the implementation.
 
 [minilm]: https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2
-[weights]:
-  https://huggingface.co/Xenova/all-MiniLM-L6-v2/blob/08a308f628bc9d6774b7922f319eb1b65afa1a82/onnx/model_quantized.onnx
+[weights]: https://huggingface.co/Xenova/all-MiniLM-L6-v2/blob/08a308f628bc9d6774b7922f319eb1b65afa1a82/onnx/model_quantized.onnx
 [bge]: https://huggingface.co/BAAI/bge-small-en-v1.5
 [fastembed]: https://github.com/Anush008/fastembed-rs
 [local-model]: https://docs.rs/fastembed/latest/fastembed/struct.UserDefinedEmbeddingModel.html

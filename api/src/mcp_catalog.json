@@ -141,12 +141,6 @@
         "community": {
           "type": "string"
         },
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "since": {
           "type": "string",
           "description": "ISO-8601 date/time lower bound."
@@ -165,7 +159,7 @@
   },
   {
     "name": "analyze_pain_points",
-    "description": "Run the deterministic source-agnostic pain engine over stored evidence and rank recurring pain by severity, recurrence, commercial intent, urgency, workaround burden, and confidence. This works without an LLM and can optionally persist the result.",
+    "description": "Run bounded, deterministic keyword triage over owned evidence. Group threads and long exact copies; report independent support, source diversity, raw and within-run relative priority. Not semantic AI, buying intent or verified demand. Dates filter collection time. Optionally save a report.",
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
@@ -182,12 +176,6 @@
         "community": {
           "type": "string"
         },
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
         "since": {
           "type": "string"
         },
@@ -197,8 +185,8 @@
         "limit": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 2000,
-          "default": 500
+          "maximum": 10000,
+          "default": 100
         },
         "save_as": {
           "type": "string",
@@ -209,7 +197,7 @@
   },
   {
     "name": "list_saved_analyses",
-    "description": "List recent deterministic cross-source pain analyses and compare the two newest scans to identify new, rising, persistent, and falling pain clusters.",
+    "description": "List saved keyword analyses. Scores are relative within each run and must not be treated as comparable trend measurements.",
     "inputSchema": {
       "type": "object",
       "additionalProperties": false,
@@ -1038,7 +1026,13 @@
         },
         "status": {
           "type": "string",
-          "enum": ["claimed", "collecting", "gap-research", "semantic-analysis", "opportunity-validation"]
+          "enum": [
+            "claimed",
+            "collecting",
+            "gap-research",
+            "semantic-analysis",
+            "opportunity-validation"
+          ]
         },
         "lease_minutes": {
           "type": "integer",
@@ -1326,7 +1320,12 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["evidence_id", "canonical_pain", "semantic_cluster_key", "semantic_cluster_label"],
+            "required": [
+              "evidence_id",
+              "canonical_pain",
+              "semantic_cluster_key",
+              "semantic_cluster_label"
+            ],
             "properties": {
               "evidence_id": {
                 "type": "string"
@@ -1456,7 +1455,12 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["cluster_id", "label", "problem_statement", "evidence_ids"],
+            "required": [
+              "cluster_id",
+              "label",
+              "problem_statement",
+              "evidence_ids"
+            ],
             "properties": {
               "cluster_id": {
                 "type": "string"
@@ -1593,7 +1597,14 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["opportunity_id", "title", "problem", "evidence_ids", "cluster_ids", "opportunity_score"],
+            "required": [
+              "opportunity_id",
+              "title",
+              "problem",
+              "evidence_ids",
+              "cluster_ids",
+              "opportunity_score"
+            ],
             "properties": {
               "opportunity_id": {
                 "type": "string"
@@ -2507,7 +2518,15 @@
         },
         "stage": {
           "type": "string",
-          "enum": ["research", "validation", "specification", "gtm", "building", "watch", "stopped"]
+          "enum": [
+            "research",
+            "validation",
+            "specification",
+            "gtm",
+            "building",
+            "watch",
+            "stopped"
+          ]
         }
       }
     }

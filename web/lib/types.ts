@@ -16,8 +16,28 @@ export type Cluster = {
   evidence_count: number;
   severity_score: number;
   examples: string[];
+  raw_priority?: number;
+  sufficient_evidence?: boolean;
+  source_families?: number;
+  mean_complaint_strength?: number;
+  supporting_evidence?: { evidence_id: string; available: boolean; excerpt?: string; source_url?: string }[];
 };
-export type Report = { evidence_scanned: number; independent_stories: number; clusters: Cluster[]; caveat: string };
+export type Report = {
+  evidence_scanned: number;
+  independent_stories: number;
+  clusters: Cluster[];
+  caveat: string;
+  engine?: string;
+  score_version?: number;
+  unclassified_items?: number;
+  coverage?: {
+    candidate_count: number;
+    selected_count: number;
+    omitted_count: number;
+    topic_excluded_count?: number;
+    limit: number;
+  };
+};
 export type Run = { id: string; project_id: string | null; topic: string; report: Report; created_at: string };
 export type Job = {
   id: string;
@@ -46,6 +66,8 @@ export type HostJob = { id: string; topic: string; status: string; pass: number 
 export type ApiKey = { id: string; label: string; created_at: string; last_used_at: string | null };
 export type Opportunity = {
   id: string;
+  run_id?: string | null;
+  score_version?: number | null;
   project_id: string | null;
   title: string;
   problem: string;
