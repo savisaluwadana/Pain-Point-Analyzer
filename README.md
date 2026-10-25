@@ -217,6 +217,18 @@ autonomously browse arbitrary websites or train models on Reddit content. Reddit
 dedicated archive collector or the approved direct Reddit connector; generic manual/MCP ingestion refuses Reddit
 records. Archive fetching runs in Rust; optional model reasoning runs in the connected host.
 
+## Analysis quality and free local operation
+
+The default path needs no paid AI subscription or inference API key. `keywords-v2` runs in Rust on your CPU.
+Reports show source-linked excerpts, missing/deleted evidence, independent discussion counts, unclassified items,
+coverage and ranking explanations. Select a budget of 1,000, 5,000 or 10,000 records in Analyze & Discover.
+One analysis runs at a time; collection budgets and permissions are unchanged. Source access may still require
+provider approval or credentials; no provider's availability or future pricing is guaranteed.
+
+New reports use **relative priority**, not severity or demand probability. Older reports retain their legacy scores.
+See [the exact formula, limitations and validation](docs/ANALYSIS_QUALITY.md). Optional MCP-host reasoning remains
+separate: no semantic model is silently downloaded or remote AI service contacted.
+
 ## Technical development
 
 ```bash

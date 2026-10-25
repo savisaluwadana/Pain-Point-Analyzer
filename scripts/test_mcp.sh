@@ -343,6 +343,32 @@ curl --fail-with-body -sS -X POST "$api/research/analyze" -H \
   -e '.report.evidence_scanned == 1' >/dev/null
 call analyze_pain_points '{"q":"%"}' | jq -e '.report.evidence_scanned == 0' >/dev/null
 call analyze_pain_points '{"q":"_"}' | jq -e '.report.evidence_scanned == 0' >/dev/null
+# Versioned analysis: bounded coverage, real date filters and ephemeral quotations.
+call analyze_pain_points '{"since":"2999-01-01T00:00:00Z"}' | jq -e '.report.evidence_scanned == 0' >/dev/null
+call analyze_pain_points '{"limit":1}' | jq -e '.report.coverage.omitted_count > 0 and .report.coverage.selected_count == 1' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/mcp/execute" -H "Authorization: Bearer $token" \
+  -H 'Content-Type: application/json' --data '{"name":"analyze_pain_points","arguments":{"since":"invalid-date"}}')" = 400
+quote_id="$(sql "INSERT INTO evidence(owner_id,source_kind,source_id,source_url,title,body) VALUES
+ ('$owner','manual','ci-quote-quality','','quotequalityfixture','slow fictional example') RETURNING id")"
+quote_scan="$(call analyze_pain_points '{"q":"quotequalityfixture","save_as":"quote lifecycle"}')"
+echo "$quote_scan" | jq -e '.report.score_version == 2 and .report.clusters[0].supporting_evidence[0].available == true' >/dev/null
+quote_scan_id="$(jq -r '.saved.id' <<<"$quote_scan")"
+# Stored reports have references/hashes but never hydrated source quotations.
+test "$(sql "SELECT (payload->'report'->'clusters'->0 ? 'supporting_evidence')::int FROM mcp_records
+ WHERE owner_id='$owner' AND kind='saved-analysis' AND id='$quote_scan_id'")" = 0
+# A content change invalidates old excerpts instead of silently rewriting history.
+sql "UPDATE evidence SET body='changed fictional text' WHERE id='$quote_id'" >/dev/null
+call list_saved_analyses '{}' | jq -e --arg id "$quote_scan_id" '.scans[] | select(.id==$id) | .report.clusters[0].supporting_evidence[0].available == false' >/dev/null
+sql "DELETE FROM evidence WHERE id='$quote_id'" >/dev/null
+call list_saved_analyses '{}' | jq -e --arg id "$quote_scan_id" '.scans[] | select(.id==$id) | .report.clusters[0].supporting_evidence[0].available == false' >/dev/null
+# Even a forged stored reference cannot hydrate another owner's evidence.
+foreign_id="$(sql "INSERT INTO evidence(owner_id,source_kind,source_id,source_url,title,body) VALUES
+ ('$other','manual','ci-foreign-quote','','foreign synthetic title','foreign synthetic body') RETURNING id")"
+foreign_hash="$(printf 'foreign synthetic title\nforeign synthetic body' | sha256sum | cut -c1-64)"
+sql "UPDATE mcp_records SET payload=jsonb_set(payload,'{report,clusters,0,example_refs}',
+ jsonb_build_array(jsonb_build_object('evidence_id','$foreign_id','content_hash','$foreign_hash')))
+ WHERE owner_id='$owner' AND kind='saved-analysis' AND id='$quote_scan_id'" >/dev/null
+call list_saved_analyses '{}' | jq -e --arg id "$quote_scan_id" '.scans[] | select(.id==$id) | .report.clusters[0].supporting_evidence[0].available == false' >/dev/null
 curl --fail-with-body -sS "$api/privacy/delete-data" -X POST \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 test "$(curl -s -o /dev/null -w '%{http_code}' "$api/me" -H "Cookie: pil_session=$session")" = 401

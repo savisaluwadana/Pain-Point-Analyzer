@@ -22,18 +22,23 @@ fn filters(args: &Value) -> (String, String, String, String, String, String, i64
         args["limit"].as_i64().unwrap_or(100).clamp(1, 500),
     )
 }
+fn parse_since(since: &str) -> ApiResult<Option<chrono::DateTime<chrono::Utc>>> {
+    if since.is_empty() {
+        return Ok(None);
+    }
+    chrono::DateTime::parse_from_rfc3339(since)
+        .map(|d| Some(d.with_timezone(&chrono::Utc)))
+        .map_err(|_| bad("since must be a valid RFC3339 timestamp"))
+}
 pub(super) async fn search(st: &AppState, owner: Uuid, args: &Value) -> ApiResult<Value> {
+    if args.get("tags").is_some() {
+        return Err(bad(
+            "Tag filtering is not supported; use source, community or batch filters",
+        ));
+    }
     let (q, kind, source, community, since, batch, limit) = filters(args);
     let query = literal_pattern(&q);
-    let since_time = if since.is_empty() {
-        None
-    } else {
-        Some(
-            chrono::DateTime::parse_from_rfc3339(&since)
-                .map_err(|_| bad("since must be a valid RFC3339 timestamp"))?
-                .with_timezone(&chrono::Utc),
-        )
-    };
+    let since_time = parse_since(&since)?;
     let rows: Vec<(Uuid, String, String, String, String, String, Value)> = sqlx::query_as(
         "SELECT id,source_kind,source_id,source_url,title,body,metadata FROM evidence WHERE owner_id=$1 AND ($2='' \
             OR title ILIKE $3 OR body ILIKE $3) AND ($4='' OR source_kind=$4) AND ($5='' OR \
@@ -176,14 +181,21 @@ pub(super) async fn ingest(st: &AppState, owner: Uuid, args: &Value) -> ApiResul
     }))
 }
 pub(super) async fn analyze(st: &AppState, owner: Uuid, args: &Value) -> ApiResult<Value> {
-    let (q, kind, source, community, _, batch, limit) = filters(args);
+    if args.get("tags").is_some() {
+        return Err(bad(
+            "Tag filtering is not supported; use source, community or batch filters",
+        ));
+    }
+    let (q, kind, source, community, since, batch, _) = filters(args);
+    let limit = args["limit"].as_i64().unwrap_or(100).clamp(1, 10_000);
+    let since_time = parse_since(&since)?;
     let qlike = literal_pattern(&q);
-    let rows: Vec<(Uuid, String, String, String, String)> = sqlx::query_as(
-        "SELECT id,source_kind,source_id,title,body FROM evidence WHERE owner_id=$1 AND ($2='' OR title ILIKE $3 OR \
+    let rows: Vec<(Uuid, String, String, String, String, i64, Value)> = sqlx::query_as(
+        "SELECT id,source_kind,source_id,title,body,count(*) OVER(),metadata FROM evidence WHERE owner_id=$1 AND ($2='' OR title ILIKE $3 OR \
             body ILIKE $3) AND ($4='' OR source_kind=$4) AND ($5='' OR metadata->>'source_name'=$5) AND ($6='' OR \
             metadata->>'community'=$6) AND ($7='' OR EXISTS(SELECT 1 FROM evidence_batches eb WHERE \
-            eb.owner_id=evidence.owner_id AND eb.evidence_id=evidence.id AND eb.batch_id=$7)) ORDER BY collected_at \
-            DESC LIMIT $8",
+            eb.owner_id=evidence.owner_id AND eb.evidence_id=evidence.id AND eb.batch_id=$7)) AND ($9::timestamptz IS NULL OR collected_at >= $9) ORDER BY collected_at \
+            DESC,id DESC LIMIT $8",
     )
     .bind(owner)
     .bind(&q)
@@ -192,21 +204,27 @@ pub(super) async fn analyze(st: &AppState, owner: Uuid, args: &Value) -> ApiResu
     .bind(&source)
     .bind(&community)
     .bind(&batch)
-    .bind(limit.clamp(1, 500))
+    .bind(limit)
+    .bind(since_time)
     .fetch_all(&st.db)
     .await
     .map_err(internal)?;
+    let candidate_count = rows.first().map_or(0, |row| row.5);
+    let selected_count = rows.len();
     let data = rows
         .into_iter()
-        .map(|(id, source_kind, source_id, title, body)| EvidenceText {
+        .map(|(id, source_kind, source_id, title, body, _, metadata)| EvidenceText {
             id,
+            source_id: scoring::analysis_source_id(&source_kind, &source_id, &metadata),
             source_kind,
-            source_id,
             text: format!("{title}\n{body}"),
         })
         .collect::<Vec<_>>();
-    let report = scoring::analyze(&data);
-    let saved = if !string(args, "save_as").is_empty() {
+    let mut report = json!(scoring::analyze_async(data).await?);
+    report["coverage"] = json!({"candidate_count": candidate_count, "selected_count": selected_count,
+        "omitted_count": candidate_count.saturating_sub(selected_count as i64), "limit": limit,
+        "selection": "latest filtered evidence"});
+    let mut saved = if !string(args, "save_as").is_empty() {
         let id = Uuid::new_v4().to_string();
         let value = json!({
             "id": id,
@@ -219,13 +237,20 @@ pub(super) async fn analyze(st: &AppState, owner: Uuid, args: &Value) -> ApiResu
     } else {
         None
     };
+    crate::research::hydrate_report(st, owner, &mut report).await?;
+    if let Some(value) = saved.as_mut() {
+        value["report"] = report.clone();
+    }
     Ok(json!({
         "report": report,
         "saved": saved,
     }))
 }
 pub(super) async fn scans(st: &AppState, owner: Uuid, args: &Value) -> ApiResult<Value> {
-    let all = state::list(st, owner, "saved-analysis", args["limit"].as_i64().unwrap_or(20)).await?;
+    let mut all = state::list(st, owner, "saved-analysis", args["limit"].as_i64().unwrap_or(20)).await?;
+    for value in &mut all {
+        crate::research::hydrate_report(st, owner, &mut value["report"]).await?;
+    }
     Ok(json!({
         "scans": all,
     }))
@@ -314,4 +339,18 @@ pub(super) async fn list_unannotated_for_run(
             })
         })
         .collect())
+}
+
+#[cfg(test)]
+mod filter_tests {
+    use super::*;
+    #[test]
+    fn date_filter_rejects_invalid_inputs_and_preserves_offsets() {
+        assert!(parse_since("").unwrap().is_none());
+        assert!(parse_since("yesterday").is_err());
+        assert_eq!(
+            parse_since("2026-01-01T05:30:00+05:30").unwrap(),
+            parse_since("2026-01-01T00:00:00Z").unwrap()
+        );
+    }
 }

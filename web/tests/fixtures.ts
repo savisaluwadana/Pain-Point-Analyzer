@@ -56,7 +56,7 @@ export const run: Run = {
 };
 
 // Mock only the transport; tests exercise the real fetch helper, hooks and view handlers.
-export function mockWorkspace({ signedIn = true, empty = false, failedPath = '' } = {}) {
+export function mockWorkspace({ signedIn = true, empty = false, failedPath = '', reportRun = run } = {}) {
   let authenticated = signedIn;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
     const path = new URL(String(input), 'http://localhost:3000').pathname;
@@ -97,7 +97,7 @@ export function mockWorkspace({ signedIn = true, empty = false, failedPath = '' 
       '/api/me': user,
       '/api/projects': [project],
       '/api/evidence': empty ? [] : evidence,
-      '/api/research/runs': empty ? [] : [run],
+      '/api/research/runs': empty ? [] : [reportRun],
       '/api/research/jobs': [],
       '/api/opportunities': [],
       '/api/mcp/keys': [],

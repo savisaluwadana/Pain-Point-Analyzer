@@ -109,7 +109,7 @@ describe('analysis and navigation', () => {
     const { actor, fetchMock } = await openWorkspace();
     await navigate(actor, /Analyze & Discover/);
     expect(screen.getByRole('heading', { name: run.topic })).toBeVisible();
-    expect(screen.getByText('42/100')).toBeVisible();
+    expect(screen.getByText('Legacy score: 42/100')).toBeVisible();
     expect(screen.getByText('2 independent stories · 2 signals')).toBeVisible();
     expect(screen.getByText(run.report.caveat)).toBeVisible();
     await actor.selectOptions(screen.getByLabelText('Research project'), project.id);
@@ -123,10 +123,46 @@ describe('analysis and navigation', () => {
         expect.objectContaining({
           method: 'POST',
           credentials: 'same-origin',
-          body: JSON.stringify({ topic: 'How can fictional reporting improve?', project_id: project.id }),
+          body: JSON.stringify({ topic: 'How can fictional reporting improve?', project_id: project.id, limit: 1000 }),
         }),
       ),
     );
+  });
+
+  it('shows coverage, priority explanations and unavailable evidence without unsafe links', async () => {
+    const reportRun = structuredClone(run);
+    reportRun.report.score_version = 2;
+    reportRun.report.unclassified_items = 3;
+    reportRun.report.coverage = { candidate_count: 20, selected_count: 2, omitted_count: 18, limit: 2 };
+    Object.assign(reportRun.report.clusters[0], {
+      raw_priority: 1.234,
+      sufficient_evidence: false,
+      source_families: 1,
+      supporting_evidence: [
+        {
+          evidence_id: 'one',
+          available: true,
+          excerpt: 'Fictional supporting quote',
+          source_url: 'https://example.com/quote',
+        },
+        { evidence_id: 'two', available: false },
+        {
+          evidence_id: 'three',
+          available: true,
+          excerpt: 'Unsafe link is suppressed',
+          source_url: 'javascript:alert(1)',
+        },
+      ],
+    });
+    const { actor } = await openWorkspace({ reportRun });
+    await navigate(actor, /Analyze & Discover/);
+    expect(screen.getByText(/18 records omitted/)).toBeVisible();
+    expect(screen.getByText('Relative priority: 42/100')).toBeVisible();
+    expect(screen.getByText(/Insufficient evidence/)).toBeVisible();
+    expect(screen.getByText('Fictional supporting quote')).toBeVisible();
+    expect(screen.getByText(/Supporting evidence expired/)).toBeVisible();
+    expect(screen.getAllByRole('link', { name: 'Read original source' })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Read original source' })).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('disables analysis until evidence exists', async () => {
