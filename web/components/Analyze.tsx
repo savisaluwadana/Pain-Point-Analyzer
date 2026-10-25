@@ -34,6 +34,12 @@ export default function Analyze({
             With approved Reddit OAuth, collect a small read-only sample of community discussions for local research.
           </p>
         </div>
+        {!user?.reddit_connected && (
+          <p className="disclaimer">
+            Use Community Sources for the archive and other connectors. The optional Reddit API controls below require
+            an approved, connected Reddit account.
+          </p>
+        )}
         <label htmlFor="project">Research project</label>
         <select id="project" value={selected} onChange={(e) => setSelected(e.target.value)}>
           <option value="">All evidence / no project</option>
@@ -55,7 +61,7 @@ export default function Analyze({
         </div>
         <button
           className="primary"
-          disabled={!user || busy}
+          disabled={!user?.reddit_connected || busy}
           onClick={() =>
             void act(
               () =>
@@ -71,7 +77,7 @@ export default function Analyze({
         </button>
         <button
           className="secondary"
-          disabled={!user || busy}
+          disabled={!user?.reddit_connected || busy}
           onClick={() =>
             void act(
               () => api('/research/jobs', { method: 'POST', body: JSON.stringify({ subreddit, project_id }) }),
@@ -92,7 +98,7 @@ export default function Analyze({
           />
           <button
             className="secondary"
-            disabled={!user || busy || !threadId.trim()}
+            disabled={!user?.reddit_connected || busy || !threadId.trim()}
             onClick={() =>
               void act(
                 () =>

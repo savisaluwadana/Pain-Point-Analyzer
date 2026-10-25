@@ -582,4 +582,23 @@ mod tests {
         );
         assert_eq!(analysis_source_id("hackernews", "comment", &json!({})), "comment");
     }
+    #[test]
+    #[ignore = "Opt-in deterministic workload timing; not a quality benchmark"]
+    fn analysis_workload_benchmark() {
+        for count in [1000, 10000] {
+            let records = (1..=count).map(|i| sample(i, &format!(
+                "Fictional workflow {i}: manual reconciliation is slow and expensive. We need clearer exports for this invented scenario.")))
+                .collect::<Vec<_>>();
+            let start = std::time::Instant::now();
+            let report = analyze(&records);
+            eprintln!(
+                "keywords-v2: {} unique records, {} ms, {} clusters",
+                count,
+                start.elapsed().as_millis(),
+                report.clusters.len()
+            );
+            assert_eq!(report.independent_stories, count as usize);
+            assert_eq!(report.evidence_scanned, count as usize);
+        }
+    }
 }

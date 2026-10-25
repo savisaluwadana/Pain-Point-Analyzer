@@ -66,6 +66,8 @@ export type HostJob = { id: string; topic: string; status: string; pass: number 
 export type ApiKey = { id: string; label: string; created_at: string; last_used_at: string | null };
 export type Opportunity = {
   id: string;
+  run_id?: string | null;
+  score_version?: number | null;
   project_id: string | null;
   title: string;
   problem: string;

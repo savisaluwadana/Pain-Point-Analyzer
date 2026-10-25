@@ -59,6 +59,20 @@ bash scripts/test_mcp.sh # test database only: inserts/deletes synthetic test ac
 bash scripts/try-demo.sh
 ```
 
+## Synthetic workload timing
+
+An opt-in test generates unique, short fictional records and checks that none are collapsed accidentally:
+
+```bash
+cd api
+cargo test --locked analysis_workload_benchmark -- --ignored --nocapture
+```
+
+On the development container (x86_64, AMD EPYC 9V74 reported by the host), the unoptimized debug build measured
+821 ms for 1,000 records and 8,175 ms for 10,000 records. These are short-input scorer timings, excluding database,
+network and UI time. They are not a load test, a quality benchmark or a promise for long inputs/other machines.
+Project candidates are listed newest-run-first; scores from different runs are not globally ranked.
+
 ## Still required before claiming semantic or production readiness
 
 The embedding engine and semantic evaluation described in ANALYSIS_DESIGN.md are not shipped. Live-provider testing,

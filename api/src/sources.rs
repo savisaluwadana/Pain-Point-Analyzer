@@ -353,34 +353,7 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
             let tag = medium_tag(q)?;
             let u = Url::parse(&format!("https://medium.com/feed/tag/{tag}")).map_err(internal)?;
             let body = fetch_bytes(&client, source, u, None).await?;
-            let channel = rss::Channel::read_from(&body[..])
-                .map_err(|_| ApiError(StatusCode::BAD_GATEWAY, "Medium returned an invalid RSS feed".into()))?;
-            channel
-                .items()
-                .iter()
-                .take(limit)
-                .filter_map(|x| {
-                    let url = x.link()?.to_string();
-                    if !url.starts_with("https://medium.com/") {
-                        return None;
-                    }
-                    Some(Finding {
-                        id: x.guid().map(|g| g.value()).unwrap_or(&url).to_owned(),
-                        title: x.title().unwrap_or("Medium article").to_owned(),
-                        body: html_text(x.description().unwrap_or("")),
-                        url,
-                        published: x
-                            .pub_date()
-                            .and_then(|d| DateTime::parse_from_rfc2822(d).ok())
-                            .map(|d| d.with_timezone(&Utc)),
-
-                        metadata: json!({
-                            "topic_tag": tag,
-                            "discovery": "Medium public RSS; excerpts only, no paywall bypass"
-                        }),
-                    })
-                })
-                .collect()
+            medium_findings(&body, tag, limit)?
         }
         _ => return Err(bad("Unsupported source")),
     };
@@ -897,5 +870,51 @@ mod contract_tests {
     fn plain_text_excerpts_are_bounded() {
         assert!(html_text(&"é".repeat(2000)).chars().count() <= 1200);
         assert_eq!(html_text("<script>plain text only</script>"), "plain text only");
+    }
+}
+
+fn medium_findings(body: &[u8], tag: &str, limit: usize) -> ApiResult<Vec<Finding>> {
+    let channel = rss::Channel::read_from(body)
+        .map_err(|_| ApiError(StatusCode::BAD_GATEWAY, "Medium returned an invalid RSS feed".into()))?;
+    Ok(channel
+        .items()
+        .iter()
+        .take(limit)
+        .filter_map(|x| {
+            let url = x.link()?.to_string();
+            if !url.starts_with("https://medium.com/") {
+                return None;
+            }
+            Some(Finding {
+                id: x.guid().map(|g| g.value()).unwrap_or(&url).to_owned(),
+                title: x.title().unwrap_or("Medium article").to_owned(),
+                body: html_text(x.description().unwrap_or("")),
+                url,
+                published: x
+                    .pub_date()
+                    .and_then(|d| DateTime::parse_from_rfc2822(d).ok())
+                    .map(|d| d.with_timezone(&Utc)),
+
+                metadata: json!({
+                    "topic_tag": tag,
+                    "discovery": "Medium public RSS; excerpts only, no paywall bypass"
+                }),
+            })
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod rss_contract_tests {
+    use super::*;
+    #[test]
+    fn rss_requires_valid_feed_and_retains_only_allowed_excerpt_links() {
+        let feed = br#"<?xml version="1.0"?><rss version="2.0"><channel><title>Fictional fixture</title><link>https://medium.com/</link><description>Invented</description>
+            <item><title>Example</title><link>https://medium.com/example</link><description>&lt;p&gt;slow &amp;amp; expensive&lt;/p&gt;</description></item>
+            <item><title>Wrong host</title><link>https://example.com/</link></item></channel></rss>"#;
+        let parsed = medium_findings(feed, "example", 25).unwrap();
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].body, "slow & expensive");
+        assert!(medium_findings(b"not RSS", "example", 25).is_err());
     }
 }

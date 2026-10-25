@@ -359,8 +359,9 @@ pub async fn analyze(
         .bind(run_id)
         .bind(&cluster.category)
         .bind(format!(
-            "{} independent observed stories; requires validation",
-            cluster.independent_stories
+            "{} independent discussions across {} source families. {} Review source evidence and existing solutions before proposing a project.",
+            cluster.independent_stories, cluster.source_families,
+            if cluster.sufficient_evidence { "Requires independent validation." } else { "Insufficient recurring evidence." }
         ))
         .bind(cluster.severity_score)
         .bind(json!(&cluster.evidence_ids))
@@ -401,6 +402,8 @@ pub async fn runs(State(st): State<AppState>, headers: HeaderMap) -> ApiResult<J
 #[derive(Serialize, FromRow)]
 pub struct OpportunityRow {
     id: Uuid,
+    run_id: Option<Uuid>,
+    score_version: Option<i64>,
     project_id: Option<Uuid>,
     title: String,
     problem: String,
@@ -416,9 +419,9 @@ pub async fn opportunities(
     let uid = oauth::user_id(&st, &headers).await?;
     assert_project(&st, uid, q.project_id).await?;
     let rows = sqlx::query_as(
-        "SELECT o.id,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.created_at FROM opportunities o LEFT \
+        "SELECT o.id,o.run_id,(r.report->>'score_version')::bigint AS score_version,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.created_at FROM opportunities o LEFT \
             JOIN research_runs r ON o.run_id=r.id WHERE o.owner_id=$1 AND ($2::uuid IS NULL OR r.project_id=$2) \
-            ORDER BY o.score DESC,o.created_at DESC LIMIT 100",
+            ORDER BY o.created_at DESC,o.run_id,o.score DESC,o.id LIMIT 100",
     )
     .bind(uid)
     .bind(q.project_id)
