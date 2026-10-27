@@ -1,6 +1,7 @@
 FROM rust:latest AS build
 WORKDIR /workspace
 COPY api /workspace/api
+COPY shared /workspace/shared
 COPY db /workspace/db
 WORKDIR /workspace/api
 RUN cargo build --release --locked
