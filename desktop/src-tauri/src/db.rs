@@ -93,7 +93,8 @@ fn read_evidence(row: &rusqlite::Row<'_>) -> rusqlite::Result<Evidence> {
 }
 fn evidence(conn: &Connection) -> Result<Vec<Evidence>, String> {
     let mut q = conn.prepare("SELECT id,source_kind,source_id,source_url,title,body,created_at FROM evidence ORDER BY created_at DESC,id DESC LIMIT 500").map_err(|e| e.to_string())?;
-    q.query_map([], read_evidence).map_err(|e| e.to_string())?.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())
+    let rows = q.query_map([], read_evidence).map_err(|e| e.to_string())?.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?;
+    Ok(rows)
 }
 fn reports(conn: &Connection) -> Result<Vec<ResearchRun>,String> {
     let mut stmt=conn.prepare("SELECT id,topic,report_json,created_at FROM research_runs ORDER BY created_at DESC,id DESC LIMIT 100").map_err(|e|e.to_string())?;

@@ -3,7 +3,7 @@ mod db;
 use std::{path::PathBuf, sync::MutexGuard};
 use tauri::{Manager, State};
 
-fn guard(state:&State<'_,db::DesktopDb>)->Result<MutexGuard<'_,rusqlite::Connection>,String>{
+fn guard<'a>(state:&'a State<'_,db::DesktopDb>)->Result<MutexGuard<'a,rusqlite::Connection>,String>{
     state.0.lock().map_err(|_| "Database is temporarily unavailable".into())
 }
 #[tauri::command]
