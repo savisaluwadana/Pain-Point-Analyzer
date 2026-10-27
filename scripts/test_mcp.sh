@@ -269,6 +269,23 @@ curl --fail-with-body -sS "$api/opportunities?project_id=$second_project" \
   -H "Cookie: pil_session=$session" | jq -e 'length > 0' >/dev/null
 curl --fail-with-body -sS "$api/opportunities?project_id=$project_id" \
   -H "Cookie: pil_session=$session" | jq -e 'length == 0' >/dev/null
+# Opportunity review is a human decision, separate from inferred demand.
+candidate="$(curl --fail-with-body -sS "$api/opportunities?project_id=$second_project" \
+  -H "Cookie: pil_session=$session" | jq -r '.[0].id')"
+curl --fail-with-body -sS "$api/opportunities/$candidate/brief" \
+  -H "Cookie: pil_session=$session" | jq -e '.referenced_count > 0 and .cluster != null' >/dev/null
+curl --fail-with-body -sS -X PUT "$api/opportunities/$candidate/review" \
+  -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' \
+  -H 'Content-Type: application/json' \
+  --data '{"decision":"needs_validation","validation_notes":"Validate the need against independently gathered information.","existing_solutions":"Fictional spreadsheet workaround"}' \
+  | jq -e '.saved == true' >/dev/null
+curl --fail-with-body -sS "$api/opportunities?project_id=$second_project" \
+  -H "Cookie: pil_session=$session" | jq -e --arg id "$candidate" \
+  'any(.[]; .id == $id and .decision == "needs_validation" and .existing_solutions == "Fictional spreadsheet workaround")' >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/opportunities/$candidate/brief")" = 401
+test "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$api/opportunities/$candidate/review" \
+  -H 'Origin: http://localhost:3000' -H 'Content-Type: application/json' \
+  --data '{"decision":"not_pursuing","validation_notes":"","existing_solutions":""}')" = 401
 curl --fail-with-body -sS "$api/projects/$second_project" -X DELETE \
   -H "Cookie: pil_session=$session" -H 'Origin: http://localhost:3000' | jq -e '.deleted == true' >/dev/null
 curl --fail-with-body -sS "$api/projects/$project_id" -X DELETE \
@@ -296,6 +313,15 @@ other="$(sql "INSERT INTO users(reddit_id,reddit_username) VALUES('ci-other-id',
 other_token='pil_other_user_key'
 other_hash="$(printf '%s' "$other_token" | sha256sum | cut -c1-64)"
 sql "INSERT INTO mcp_api_keys(owner_id,key_hash,label) VALUES('$other','$other_hash','Second account')" >/dev/null
+other_session='ci-second-user-cookie'
+other_session_hash="$(printf '%s' "$other_session" | sha256sum | cut -c1-64)"
+sql "INSERT INTO user_sessions(token_hash,user_id,expires_at) VALUES('$other_session_hash','$other',now()+interval '1 hour')" >/dev/null
+test "$(curl -s -o /dev/null -w '%{http_code}' "$api/opportunities/$candidate/brief" \
+  -H "Cookie: pil_session=$other_session")" = 404
+test "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$api/opportunities/$candidate/review" \
+  -H "Cookie: pil_session=$other_session" -H 'Origin: http://localhost:3000' \
+  -H 'Content-Type: application/json' \
+  --data '{"decision":"not_pursuing","validation_notes":"","existing_solutions":""}')" = 404
 curl --fail-with-body -sS "$api/mcp/execute" -H "Authorization: Bearer $other_token" \
   -H 'Content-Type: application/json' --data '{"name":"search_evidence","arguments":{"q":"spreadsheets"}}' | jq \
   -e '.returned == 0' >/dev/null
