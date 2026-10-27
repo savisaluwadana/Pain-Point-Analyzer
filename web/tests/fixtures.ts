@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { Evidence, Project, Run, User } from '../lib/types';
+import type { Evidence, Opportunity, OpportunityBrief, Project, Run, User } from '../lib/types';
 
 export const user: User = {
   id: 'local-user',
@@ -56,7 +56,14 @@ export const run: Run = {
 };
 
 // Mock only the transport; tests exercise the real fetch helper, hooks and view handlers.
-export function mockWorkspace({ signedIn = true, empty = false, failedPath = '', reportRun = run } = {}) {
+export function mockWorkspace({
+  signedIn = true,
+  empty = false,
+  failedPath = '',
+  reportRun = run,
+  opportunities = [] as Opportunity[],
+  opportunityBrief = null as OpportunityBrief | null,
+} = {}) {
   let authenticated = signedIn;
   const fetchMock = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
     const path = new URL(String(input), 'http://localhost:3000').pathname;
@@ -86,12 +93,34 @@ export function mockWorkspace({ signedIn = true, empty = false, failedPath = '',
     }
     if (!authenticated) return Response.json({ error: 'Sign in to the research workspace' }, { status: 401 });
     if (path === failedPath) return Response.json({ error: 'Fixture unavailable' }, { status: 503 });
-    if (options?.method === 'POST' || options?.method === 'DELETE') {
+    if (options?.method === 'POST' || options?.method === 'DELETE' || options?.method === 'PUT') {
       if (path === '/api/research/analyze') return Response.json({ run_id: run.id, report: run.report });
       if (path === '/api/mcp/keys') return Response.json({ api_key: 'pil_fictional_test_key' });
       if (path === '/api/sources/collect')
         return Response.json({ saved: 2, fetched: 10, eligible: 5, note: 'Fixture.' });
       return Response.json({ ok: true });
+    }
+    if (path.startsWith('/api/opportunities/') && path.endsWith('/brief')) {
+      return Response.json(
+        opportunityBrief || {
+          title: 'Manual workflow',
+          referenced_count: 1,
+          cluster: {
+            independent_stories: 2,
+            source_families: 1,
+            sufficient_evidence: false,
+            supporting_evidence: [
+              {
+                evidence_id: 'evidence-one',
+                available: true,
+                excerpt: 'Fictional manual workflow evidence',
+                source_url: 'https://example.com/fictional-one',
+              },
+            ],
+          },
+          caveat: 'Fictional observations are not verified demand.',
+        },
+      );
     }
     const data: Record<string, unknown> = {
       '/api/me': user,
@@ -99,7 +128,7 @@ export function mockWorkspace({ signedIn = true, empty = false, failedPath = '',
       '/api/evidence': empty ? [] : evidence,
       '/api/research/runs': empty ? [] : [reportRun],
       '/api/research/jobs': [],
-      '/api/opportunities': [],
+      '/api/opportunities': opportunities,
       '/api/mcp/keys': [],
       '/api/mcp/runs': [],
       '/api/mcp/workspaces': [],
