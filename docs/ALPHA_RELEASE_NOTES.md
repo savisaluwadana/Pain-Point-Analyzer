@@ -20,7 +20,7 @@ September 2026 describes an earlier codebase and should not be used as evidence 
 
 ## Start here
 
-Read [README](../README.md), then follow [Five-minute demo](DEMO.md) with `bash scripts/try-demo.sh`. For Reddit
+Read [README](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/README.md), then follow [Five-minute demo](DEMO.md) with `bash scripts/try-demo.sh`. For Reddit
 research without OAuth, follow the [Arctic Shift quick start](ARCTIC_SHIFT.md). Use [Source connectors](SOURCES.md) for
 other providers.
 

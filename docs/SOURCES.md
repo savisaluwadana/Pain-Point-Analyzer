@@ -20,7 +20,7 @@ contributions.
 
 ## Configure
 
-Complete the [README setup](../README.md#quick-start-try-it-without-external-api-credentials), including the database
+Complete the [README setup](GETTING_STARTED.md), including the database
 password and encryption key. For source configuration, generate a separate login key with `openssl rand -hex 32`, then
 set in local `.env`:
 

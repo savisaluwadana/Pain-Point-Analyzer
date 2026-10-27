@@ -70,7 +70,7 @@ the account deletion option in **Privacy & Settings** or stop services and expli
 
 ## Report your first-run outcome
 
-Please use the repository's [bug report template](../.github/ISSUE_TEMPLATE/bug_report.yml) to report an error, or the
-[feedback template](../.github/ISSUE_TEMPLATE/feedback.yml) if the setup works. Do not attach personal tokens or
+Please use the repository's [bug report template](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/.github/ISSUE_TEMPLATE/bug_report.yml) to report an error, or the
+[feedback template](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/.github/ISSUE_TEMPLATE/feedback.yml) if the setup works. Do not attach personal tokens or
 third-party post text. Helpful feedback includes OS, Docker version, the step that failed, and whether the synthetic
 report displayed at least one theme.
