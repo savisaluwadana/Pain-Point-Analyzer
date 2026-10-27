@@ -27,7 +27,7 @@ function TextField({label,value,onChange,rows,placeholder}: {label:string;value:
   return <label className="field"><span>{label}</span>{rows ? <textarea rows={rows} value={value} placeholder={placeholder} onChange={e=>onChange(e.target.value)}/>
     : <input value={value} placeholder={placeholder} onChange={e=>onChange(e.target.value)}/>}</label>;
 }
-function Review({item,snapshot,refresh,mutate}:{item:Opportunity;snapshot:Workspace;refresh:()=>Promise<void>;mutate:<T,>(action:()=>Promise<T>,success:string)=>Promise<T|undefined>}) {
+function Review({item,snapshot,refresh,mutate}:{item:Opportunity;snapshot:Workspace;refresh:()=>Promise<void>;mutate:<T,>(action:()=>Promise<T>,success:string)=>Promise<{ok:true;value:T}|{ok:false}>}) {
   const [decision,setDecision]=useState<Decision>(item.decision);
   const [notes,setNotes]=useState(item.validation_notes);
   const [solutions,setSolutions]=useState(item.existing_solutions);

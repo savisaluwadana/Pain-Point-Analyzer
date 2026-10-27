@@ -1,8 +1,8 @@
 //! Dependency-free, auditable triage. This is not a semantic model or demand forecast.
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use uuid::Uuid;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct EvidenceText {
