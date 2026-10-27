@@ -17,7 +17,6 @@ const opportunity: Opportunity = {
   decision: 'needs_validation',
   existing_solutions: 'Existing manual spreadsheet',
   validation_notes: 'Verify with at least three independent contributors.',
-            existing_solutions: 'Existing manual spreadsheet',
 };
 
 async function openReview(brief?: OpportunityBrief) {
@@ -50,6 +49,7 @@ describe('manual opportunity review', () => {
           body: JSON.stringify({
             decision: 'investigating',
             validation_notes: 'Verify with at least three independent contributors.',
+            existing_solutions: 'Existing manual spreadsheet',
           }),
         }),
       ),
