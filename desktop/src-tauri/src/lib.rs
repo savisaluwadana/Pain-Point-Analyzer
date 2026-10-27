@@ -8,32 +8,32 @@ fn guard<'a>(state:&'a State<'_,db::DesktopDb>)->Result<MutexGuard<'a,rusqlite::
 }
 #[tauri::command]
 fn load_workspace(state:State<'_,db::DesktopDb>)->Result<db::Workspace,String>{
-    db::workspace(&guard(&state)?)
+    db::workspace(&*guard(&state)?)
 }
 #[tauri::command]
 fn save_evidence(state:State<'_,db::DesktopDb>,entry:db::NewEvidence)->Result<(),String>{
-    db::save_evidence(&guard(&state)?,entry)
+    db::save_evidence(&*guard(&state)?,entry)
 }
 #[tauri::command]
 fn remove_evidence(state:State<'_,db::DesktopDb>,id:String)->Result<(),String>{
-    db::remove_evidence(&guard(&state)?,&id)
+    db::remove_evidence(&*guard(&state)?,&id)
 }
 #[tauri::command]
 fn seed_demo(state:State<'_,db::DesktopDb>)->Result<usize,String>{
-    db::seed_demo(&mut guard(&state)?)
+    db::seed_demo(&mut *guard(&state)?)
 }
 #[tauri::command]
 fn run_analysis(state:State<'_,db::DesktopDb>,topic:String)->Result<(),String>{
-    db::analyze(&mut guard(&state)?,&topic)
+    db::analyze(&mut *guard(&state)?,&topic)
 }
 #[tauri::command]
 fn save_review(state:State<'_,db::DesktopDb>,id:String,decision:String,notes:String,solutions:String)->Result<(),String>{
-    db::save_review(&guard(&state)?,&id,&decision,&notes,&solutions)
+    db::save_review(&*guard(&state)?,&id,&decision,&notes,&solutions)
 }
 #[tauri::command]
 fn export_workspace(app:tauri::AppHandle,state:State<'_,db::DesktopDb>)->Result<String,String>{
     let path:PathBuf=app.path().app_data_dir().map_err(|e|e.to_string())?.join("exports");
-    db::export_json(&guard(&state)?,&path)
+    db::export_json(&*guard(&state)?,&path)
 }
 
 pub fn run(){
