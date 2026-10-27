@@ -7,7 +7,7 @@ itself. Availability is not a license to reuse the content; confirm applicable p
 ## Setup or upgrade
 
 For a new installation, complete the
-[README quick start](../README.md#quick-start-try-it-without-external-api-credentials). Set three different secrets in
+[README quick start](GETTING_STARTED.md). Set three different secrets in
 `.env`: `TOKEN_ENCRYPTION_KEY_HEX`, `LOCAL_LOGIN_TOKEN` and `POSTGRES_PASSWORD`. Leave `REDDIT_API_APPROVED=false` and
 the Reddit client credentials empty for archive-only research.
 

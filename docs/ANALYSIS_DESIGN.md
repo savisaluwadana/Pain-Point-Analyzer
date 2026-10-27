@@ -23,17 +23,17 @@ pass before making it the default. If they fail, retain the corrected keyword en
 
 Reviewed against main after Phase 2:
 
-- [scoring.rs](../api/src/scoring.rs) uses substring matches against eight fixed categories. `terror` can match `error`;
+- [scoring.rs](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/api/src/scoring.rs) uses substring matches against eight fixed categories. `terror` can match `error`;
   neutral mentions of `pricing` can count as pain. Topic relevance also uses lexical substring checks.
 - Its score is `min(100, 15 * independent_stories + 3 * hits)`. Six one-hit stories already exceed 100 before capping.
   Ties do not have a stable secondary ordering. Cluster `examples` are empty.
 - Same-thread grouping and long normalized copied-text grouping exist. Copy grouping depends on input order; both must
   survive the replacement with stable, transitive grouping.
-- [HTTP analysis](../api/src/research.rs) selects at most 1,000 recent items. [MCP analysis](../api/src/mcp/evidence.rs)
+- [HTTP analysis](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/api/src/research.rs) selects at most 1,000 recent items. [MCP analysis](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/api/src/mcp/evidence.rs)
   clamps its item limit to 500. Replacing the scorer alone would leave these dataset limits in place.
 - The scoring input lacks publication dates. Existing saved reports and opportunities contain scores and evidence
   references. The frontend presents scores out of 100 without explaining their components.
-- [MCP synthesis](../api/src/mcp/advanced.rs) already supports host-provided annotations and synthesis tied to owned
+- [MCP synthesis](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/api/src/mcp/advanced.rs) already supports host-provided annotations and synthesis tied to owned
   evidence IDs. It does not run an LLM inside the API.
 
 The proposal changes analysis only. Collection permissions, provider budgets, retention, tenant boundaries, auth, CSRF,

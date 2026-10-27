@@ -8,7 +8,7 @@ useful software that could be developed and shared as open-source projects.
 
 The current planned operation is **local, individual, and non-commercial**. This describes the operator's present
 intended use, not a claim that Reddit has approved API access. The application's original source code is distributed
-under the [MIT License](../LICENSE); that software license does not authorize access to, redistribution of, or
+under the [MIT License](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/LICENSE); that software license does not authorize access to, redistribution of, or
 commercial use of Reddit content.
 
 Examples include:

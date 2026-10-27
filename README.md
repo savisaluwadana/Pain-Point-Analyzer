@@ -5,6 +5,8 @@
 
 **From community conversations to useful open-source projects.**
 
+**Documentation:** [GitHub Pages website](https://savisaluwadana.github.io/Pain-Point-Analyzer/) (after Pages is enabled) · [Documentation index](docs/index.md) · [Full API reference](docs/API_REFERENCE.md) · [Developer guide](docs/DEVELOPMENT.md)
+
 **Get started:** [Reddit archive quick start](docs/ARCTIC_SHIFT.md) · [Five-minute fictional demo](docs/DEMO.md) ·
 [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md) · [Architecture](#architecture) ·
 [Known limitations](#limitations) ·
