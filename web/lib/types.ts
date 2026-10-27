@@ -73,7 +73,30 @@ export type Opportunity = {
   problem: string;
   score: number;
   evidence_refs: string[];
+  decision?: OpportunityDecision;
+  validation_notes?: string;
+  existing_solutions?: string;
+  reviewed_at?: string | null;
   created_at: string;
+};
+export type OpportunityDecision =
+  | 'unreviewed'
+  | 'investigating'
+  | 'needs_validation'
+  | 'ready_to_build'
+  | 'not_pursuing';
+export type OpportunityBrief = {
+  engine?: string;
+  title: string;
+  referenced_count: number;
+  coverage?: { candidate_count: number; selected_count: number; omitted_count: number };
+  cluster: {
+    independent_stories?: number;
+    source_families?: number;
+    sufficient_evidence?: boolean;
+    supporting_evidence?: { evidence_id: string; available: boolean; excerpt?: string; source_url?: string }[];
+  } | null;
+  caveat: string;
 };
 export type SourceOption = {
   id: string;

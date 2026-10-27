@@ -217,6 +217,10 @@ autonomously browse arbitrary websites or train models on Reddit content. Reddit
 dedicated archive collector or the approved direct Reddit connector; generic manual/MCP ingestion refuses Reddit
 records. Archive fetching runs in Rust; optional model reasoning runs in the connected host.
 
+Manual, owner-scoped opportunity review is available from the candidate list: inspect currently valid representative
+source excerpts, record existing solutions and validation notes, and choose a next decision. These are human-entered
+notes, **not** AI-verified market demand. See [opportunity review](docs/OPPORTUNITY_REVIEW.md).
+
 ## Analysis quality and free local operation
 
 The default path needs no paid AI subscription or inference API key. `keywords-v2` runs in Rust on your CPU.

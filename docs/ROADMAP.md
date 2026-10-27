@@ -13,6 +13,7 @@ features already exist.
       backoff
 - [x] Reddit post/comment grouping by thread across direct and archive evidence
 - [x] Evidence library, source links, rule-based theme summaries, project ideas
+- [x] Owner-scoped manual opportunity review with live evidence hydration and user-entered validation notes
 - [x] Reproducible **fictional** demo with CI coverage
 - [x] Contributor, conduct, security, support and issue templates
 - [ ] Run and record **real provider smoke tests** for every advertised connector (credentials where needed)

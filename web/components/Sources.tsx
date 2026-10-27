@@ -38,7 +38,7 @@ export default function Sources({
           <p>
             Alpha preview: start with GitHub or try the{' '}
             <a
-              href="https://github.com/savisaluwadana/Reddit-post-Analyzer/blob/main/docs/DEMO.md"
+              href="https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/docs/DEMO.md"
               target="_blank"
               rel="noopener noreferrer"
             >

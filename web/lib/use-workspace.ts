@@ -153,7 +153,7 @@ export function useWorkspace() {
       latest,
       projectEditor: { ...context, ...scope, ...projectForm },
     },
-    ideas: { opportunities },
+    ideas: { opportunities, busy, act },
     jobView: { jobs, load },
     assisted: { hostJobs, hostRuns, hostWorkspaces, load },
     integrations: { keys, keyLabel, setKeyLabel, newKey, setNewKey },

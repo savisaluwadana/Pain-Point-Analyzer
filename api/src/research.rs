@@ -409,6 +409,10 @@ pub struct OpportunityRow {
     problem: String,
     score: f64,
     evidence_refs: Value,
+    decision: String,
+    validation_notes: String,
+    existing_solutions: String,
+    reviewed_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
 }
 pub async fn opportunities(
@@ -419,7 +423,8 @@ pub async fn opportunities(
     let uid = oauth::user_id(&st, &headers).await?;
     assert_project(&st, uid, q.project_id).await?;
     let rows = sqlx::query_as(
-        "SELECT o.id,o.run_id,(r.report->>'score_version')::bigint AS score_version,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.created_at FROM opportunities o LEFT \
+        "SELECT o.id,o.run_id,(r.report->>'score_version')::bigint AS score_version,r.project_id,o.title,o.problem,o.score,o.evidence_refs,o.decision,o.validation_notes,o.existing_solutions,o.reviewed_at,\
+            o.created_at FROM opportunities o LEFT \
             JOIN research_runs r ON o.run_id=r.id WHERE o.owner_id=$1 AND ($2::uuid IS NULL OR r.project_id=$2) \
             ORDER BY o.created_at DESC,o.run_id,o.score DESC,o.id LIMIT 100",
     )
@@ -491,7 +496,8 @@ pub async fn export_data(State(st): State<AppState>, headers: HeaderMap) -> ApiR
     .await
     .map_err(internal)?;
     let opportunities: Vec<Value> = sqlx::query_scalar(
-        "SELECT to_jsonb(t) FROM (SELECT id,run_id,title,problem,score,evidence_refs,created_at FROM opportunities \
+        "SELECT to_jsonb(t) FROM (SELECT id,run_id,title,problem,score,evidence_refs,decision,validation_notes,\
+            existing_solutions,reviewed_at,created_at FROM opportunities \
             WHERE owner_id=$1 ORDER BY created_at DESC LIMIT 5001) t",
     )
     .bind(uid)

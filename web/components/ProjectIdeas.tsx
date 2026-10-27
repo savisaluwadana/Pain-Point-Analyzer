@@ -1,9 +1,10 @@
 'use client';
 import type { Workspace } from '../lib/use-workspace';
+import OpportunityReview from './OpportunityReview';
 
 type Props = Workspace['ideas'];
 
-export default function ProjectIdeas({ opportunities }: Props) {
+export default function ProjectIdeas({ opportunities, busy, act }: Props) {
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -27,6 +28,8 @@ export default function ProjectIdeas({ opportunities }: Props) {
                 {o.evidence_refs.length} supporting references
                 {o.run_id ? ` · Research run ${o.run_id.slice(0, 8)}` : ''}
               </small>
+              <p className="disclaimer">Your decision: {(o.decision || 'unreviewed').replaceAll('_', ' ')}</p>
+              <OpportunityReview opportunity={o} busy={busy} act={act} />
             </article>
           ))}
         </div>

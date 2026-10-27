@@ -4,6 +4,7 @@ mod jobs;
 mod local_auth;
 mod mcp;
 mod oauth;
+mod opportunity_review;
 mod reddit;
 mod research;
 mod scoring;
@@ -195,6 +196,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/research/runs", get(research::runs))
         .route("/api/research/jobs", get(jobs::list).post(jobs::create))
         .route("/api/opportunities", get(research::opportunities))
+        .route("/api/opportunities/{id}/brief", get(opportunity_review::brief))
+        .route("/api/opportunities/{id}/review", axum::routing::put(opportunity_review::save_review))
         .route("/api/privacy/delete-data", post(research::delete_data))
         .route("/api/privacy/export", get(research::export_data))
         .layer(TraceLayer::new_for_http())
