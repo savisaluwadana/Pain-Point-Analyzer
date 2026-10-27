@@ -101,13 +101,26 @@ export function mockWorkspace({
       return Response.json({ ok: true });
     }
     if (path.startsWith('/api/opportunities/') && path.endsWith('/brief')) {
-      return Response.json(opportunityBrief || {
-        title: 'Manual workflow', referenced_count: 1,
-        cluster: { independent_stories: 2, source_families: 1, sufficient_evidence: false,
-          supporting_evidence: [{ evidence_id: 'evidence-one', available: true,
-            excerpt: 'Fictional manual workflow evidence', source_url: 'https://example.com/fictional-one' }] },
-        caveat: 'Fictional observations are not verified demand.',
-      });
+      return Response.json(
+        opportunityBrief || {
+          title: 'Manual workflow',
+          referenced_count: 1,
+          cluster: {
+            independent_stories: 2,
+            source_families: 1,
+            sufficient_evidence: false,
+            supporting_evidence: [
+              {
+                evidence_id: 'evidence-one',
+                available: true,
+                excerpt: 'Fictional manual workflow evidence',
+                source_url: 'https://example.com/fictional-one',
+              },
+            ],
+          },
+          caveat: 'Fictional observations are not verified demand.',
+        },
+      );
     }
     const data: Record<string, unknown> = {
       '/api/me': user,

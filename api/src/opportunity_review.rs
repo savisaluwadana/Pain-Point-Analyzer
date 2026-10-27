@@ -24,10 +24,14 @@ fn validate_review(body: &ReviewInput) -> ApiResult<()> {
         return Err(bad("Invalid opportunity decision"));
     }
     if body.validation_notes.chars().count() > 4000 || body.existing_solutions.chars().count() > 2000 {
-        return Err(bad("Validation notes must be at most 4000 characters and existing solutions at most 2000"));
+        return Err(bad(
+            "Validation notes must be at most 4000 characters and existing solutions at most 2000",
+        ));
     }
     if body.decision == "ready_to_build" && body.validation_notes.trim().chars().count() < 20 {
-        return Err(bad("Record the basis for the ready-to-build decision (at least 20 characters)"));
+        return Err(bad(
+            "Record the basis for the ready-to-build decision (at least 20 characters)",
+        ));
     }
     Ok(())
 }
@@ -60,11 +64,7 @@ pub async fn save_review(
 
 /// Return only an existing research run's representative, still-valid references.
 /// Do not persist copied quotes in opportunities or user-authored review notes.
-pub async fn brief(
-    State(st): State<AppState>,
-    headers: HeaderMap,
-    Path(id): Path<Uuid>,
-) -> ApiResult<Json<Value>> {
+pub async fn brief(State(st): State<AppState>, headers: HeaderMap, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
     let uid = oauth::user_id(&st, &headers).await?;
     let row: Option<(String, Value, Value)> = sqlx::query_as(
         "SELECT o.title,o.evidence_refs,r.report FROM opportunities o \
@@ -98,7 +98,11 @@ mod tests {
     use super::*;
 
     fn input(decision: &str, notes: &str, solutions: &str) -> ReviewInput {
-        ReviewInput { decision: decision.into(), validation_notes: notes.into(), existing_solutions: solutions.into() }
+        ReviewInput {
+            decision: decision.into(),
+            validation_notes: notes.into(),
+            existing_solutions: solutions.into(),
+        }
     }
 
     #[test]

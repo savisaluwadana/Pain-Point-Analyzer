@@ -67,7 +67,14 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
           {error && (
             <p role="alert">
               {error}{' '}
-              <button className="tiny" type="button" onClick={() => { setExpanded(false); setBrief(null); }}>
+              <button
+                className="tiny"
+                type="button"
+                onClick={() => {
+                  setExpanded(false);
+                  setBrief(null);
+                }}
+              >
                 Close and retry
               </button>
             </p>
@@ -76,8 +83,8 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
             <>
               <p>
                 {brief.cluster?.independent_stories ?? 'Unknown'} independent discussions ·{' '}
-                {brief.cluster?.source_families ?? 'Unknown'} source families ·{' '}
-                {brief.referenced_count} historical references
+                {brief.cluster?.source_families ?? 'Unknown'} source families · {brief.referenced_count} historical
+                references
               </p>
               {brief.coverage && (
                 <p>
@@ -108,7 +115,9 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
                   ))}
                 </div>
               ) : (
-                <p>No preserved representative excerpts for this run. Review the evidence library and original sources.</p>
+                <p>
+                  No preserved representative excerpts for this run. Review the evidence library and original sources.
+                </p>
               )}
               <p className="disclaimer">{brief.caveat}</p>
             </>
@@ -132,8 +141,8 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
             placeholder="What still needs testing? Record your own interview findings and contradictory evidence."
           />
           <p className="disclaimer">
-            These are your own notes. Do not copy third-party posts, personal data or copyrighted excerpts.
-            Choosing a decision is not proof of market demand.
+            These are your own notes. Do not copy third-party posts, personal data or copyrighted excerpts. Choosing a
+            decision is not proof of market demand.
           </p>
           <label htmlFor={'decision-' + id}>Your next decision</label>
           <select
@@ -142,7 +151,9 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
             onChange={(e) => setDecision(e.target.value as OpportunityDecision)}
           >
             {decisions.map((choice) => (
-              <option key={choice.value} value={choice.value}>{choice.label}</option>
+              <option key={choice.value} value={choice.value}>
+                {choice.label}
+              </option>
             ))}
           </select>
           <button
@@ -151,10 +162,11 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
             type="button"
             onClick={() =>
               void act(
-                () => api('/opportunities/' + encodeURIComponent(id) + '/review', {
-                  method: 'PUT',
-                  body: JSON.stringify({ decision, validation_notes: notes, existing_solutions: solutions }),
-                }),
+                () =>
+                  api('/opportunities/' + encodeURIComponent(id) + '/review', {
+                    method: 'PUT',
+                    body: JSON.stringify({ decision, validation_notes: notes, existing_solutions: solutions }),
+                  }),
                 'Opportunity review saved',
               )
             }

@@ -17,6 +17,7 @@ const opportunity: Opportunity = {
   decision: 'needs_validation',
   existing_solutions: 'Existing manual spreadsheet',
   validation_notes: 'Verify with at least three independent contributors.',
+            existing_solutions: 'Existing manual spreadsheet',
 };
 
 async function openReview(brief?: OpportunityBrief) {
@@ -34,22 +35,25 @@ describe('manual opportunity review', () => {
     const { actor, fetchMock } = await openReview();
     expect(await screen.findByText('Fictional manual workflow evidence')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Read original source' })).toHaveAttribute(
-      'href', 'https://example.com/fictional-one',
+      'href',
+      'https://example.com/fictional-one',
     );
     expect(screen.getByText(/Fewer than three independent/)).toBeVisible();
     await actor.selectOptions(screen.getByLabelText('Your next decision'), 'investigating');
     await actor.click(screen.getByRole('button', { name: 'Save manual review' }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      '/api/opportunities/candidate-one/review',
-      expect.objectContaining({
-        method: 'PUT', credentials: 'same-origin',
-        body: JSON.stringify({
-          decision: 'investigating',
-          existing_solutions: 'Existing manual spreadsheet',
-          validation_notes: 'Verify with at least three independent contributors.',
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/opportunities/candidate-one/review',
+        expect.objectContaining({
+          method: 'PUT',
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            decision: 'investigating',
+            validation_notes: 'Verify with at least three independent contributors.',
+          }),
         }),
-      }),
-    ));
+      ),
+    );
   });
 
   it('does not render unsafe or expired evidence as a clickable source', async () => {
@@ -59,8 +63,7 @@ describe('manual opportunity review', () => {
       caveat: 'Historical research',
       cluster: {
         supporting_evidence: [
-          { evidence_id: 'a', available: true, excerpt: 'Unsafe link test',
-            source_url: 'javascript:alert(1)' },
+          { evidence_id: 'a', available: true, excerpt: 'Unsafe link test', source_url: 'javascript:alert(1)' },
           { evidence_id: 'b', available: false },
         ],
       },

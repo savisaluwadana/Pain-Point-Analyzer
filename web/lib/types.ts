@@ -80,11 +80,7 @@ export type Opportunity = {
   created_at: string;
 };
 export type OpportunityDecision =
-  | 'unreviewed'
-  | 'investigating'
-  | 'needs_validation'
-  | 'ready_to_build'
-  | 'not_pursuing';
+  'unreviewed' | 'investigating' | 'needs_validation' | 'ready_to_build' | 'not_pursuing';
 export type OpportunityBrief = {
   engine?: string;
   title: string;
