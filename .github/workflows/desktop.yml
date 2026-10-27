@@ -1,0 +1,80 @@
+name: Desktop Tauri 2 (macOS and Windows)
+on:
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'shared/**'
+      - 'api/src/scoring.rs'
+      - '.github/workflows/desktop.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'shared/**'
+      - 'api/src/scoring.rs'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install, typecheck and compile static desktop frontend
+        working-directory: desktop
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+  native:
+    needs: frontend
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-15
+            target: aarch64-apple-darwin
+            bundle: dmg
+            suffix: mac-apple-silicon
+          - platform: macos-15-intel
+            target: x86_64-apple-darwin
+            bundle: dmg
+            suffix: mac-intel
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle: nsis
+            suffix: windows-x64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+      - name: Generate icons and web assets
+        working-directory: desktop
+        run: |
+          npm run icons
+          npm run build
+      - name: Rust workspace and shared analyzer tests
+        run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
+      - name: Build native installer
+        working-directory: desktop
+        run: npm run desktop:build -- --bundles ${{ matrix.bundle }} --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discovery-lab-desktop-${{ matrix.suffix }}
+          path: |
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+          if-no-files-found: error

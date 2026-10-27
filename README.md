@@ -235,6 +235,11 @@ New reports use **relative priority**, not severity or demand probability. Older
 See [the exact formula, limitations and validation](docs/ANALYSIS_QUALITY.md). Optional MCP-host reasoning remains
 separate: no semantic model is silently downloaded or remote AI service contacted.
 
+
+## Desktop edition (development alpha)
+
+A separate [Tauri 2 desktop app](desktop/README.md) for **macOS and Windows** is being developed. Its first slice uses native React, private local SQLite and the **same Rust keyword-analysis engine** as this web/API edition. It supports manual evidence, six fictional demo items, saved analysis, opportunity review and JSON export. Desktop collectors, OAuth, MCP parity, import/restore and signed installers are **not yet shipped**. See [desktop setup, scope and security](desktop/README.md) and [issue #44](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/44).
+
 ## Technical development
 
 ```bash

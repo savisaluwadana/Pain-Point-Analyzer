@@ -1,5 +1,5 @@
 //! Private per-OS-user SQLite storage, completely separate from the PostgreSQL web edition.
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::Path, sync::Mutex, time::Duration};
 use uuid::Uuid;
