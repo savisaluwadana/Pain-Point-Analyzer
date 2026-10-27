@@ -1,0 +1,50 @@
+/* Public documentation site only. No application code, secrets or data collection. */
+:root {
+  --md-primary-fg-color: #164f3e;
+  --md-primary-fg-color--light: #2c7259;
+  --md-primary-fg-color--dark: #0e362b;
+  --md-accent-fg-color: #26694d;
+}
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #245d49;
+  --md-accent-fg-color: #8ad3a5;
+}
+.md-typeset .hero-lead {
+  font-size: 1.05rem;
+  line-height: 1.8;
+  max-width: 49rem;
+  color: var(--md-default-fg-color--light);
+}
+.md-typeset .hero-eyebrow {
+  color: var(--md-accent-fg-color);
+  font-size: 0.76rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.md-typeset .hero-title {
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  font-weight: 780;
+  line-height: 1.12;
+  letter-spacing: -0.045em;
+  margin: 0.35em 0 0.45em;
+}
+.md-typeset .grid.cards > ul > li {
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: var(--md-accent-fg-color);
+}
+.md-typeset .status-strip {
+  border-left: 3px solid var(--md-accent-fg-color);
+  background: var(--md-code-bg-color);
+  padding: 0.75rem 1rem;
+  border-radius: 0 8px 8px 0;
+  font-size: 0.8rem;
+}
+.md-typeset pre code { border-radius: 8px; }
+@media (max-width: 44rem) {
+  .md-typeset .hero-title { letter-spacing: -0.025em; }
+  .md-typeset .grid.cards > ul > li { padding: 0.8rem; }
+}

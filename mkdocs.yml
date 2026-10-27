@@ -1,0 +1,81 @@
+site_name: Open Source Discovery Lab
+site_description: "Source-linked community research for responsible open-source opportunity discovery."
+site_url: https://savisaluwadana.github.io/Pain-Point-Analyzer/
+repo_url: https://github.com/savisaluwadana/Pain-Point-Analyzer
+repo_name: savisaluwadana/Pain-Point-Analyzer
+edit_uri: edit/main/docs/
+copyright: "Open Source Discovery Lab · MIT software license · Third-party content has separate terms"
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark theme
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light theme
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+extra_css:
+  - assets/stylesheets/extra.css
+nav:
+  - Home: index.md
+  - Getting started:
+      - Install and first run: GETTING_STARTED.md
+      - Five-minute demo: DEMO.md
+      - User workflows: USER_GUIDE.md
+      - Reddit archive setup: ARCTIC_SHIFT.md
+  - Features and analysis:
+      - Source connectors: SOURCES.md
+      - Opportunity review: OPPORTUNITY_REVIEW.md
+      - Analysis quality: ANALYSIS_QUALITY.md
+      - Semantic analysis proposal: ANALYSIS_DESIGN.md
+      - MCP host integration: MCP.md
+      - MCP tool index: MCP_TOOL_INDEX.md
+  - Architecture:
+      - System architecture: ARCHITECTURE.md
+      - Data model and flows: DATA_MODEL.md
+      - HTTP API reference: API_REFERENCE.md
+  - Engineering:
+      - Development and testing: DEVELOPMENT.md
+      - Operations and recovery: OPERATIONS.md
+      - Documentation and Pages: DOCUMENTATION_SITE.md
+  - Project:
+      - Roadmap: ROADMAP.md
+      - Purpose and permissions: PURPOSE_AND_DATA_USE.md
+      - Release status: ALPHA_RELEASE_NOTES.md
+      - Support and security: SUPPORT_AND_SECURITY.md
