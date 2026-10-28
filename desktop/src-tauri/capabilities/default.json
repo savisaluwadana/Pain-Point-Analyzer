@@ -1,0 +1,10 @@
+{
+  "identifier": "main-window",
+  "description": "No filesystem, shell, network or opener plugins; only application-owned Rust IPC commands.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

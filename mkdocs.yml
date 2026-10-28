@@ -70,6 +70,8 @@ nav:
       - System architecture: ARCHITECTURE.md
       - Data model and flows: DATA_MODEL.md
       - HTTP API reference: API_REFERENCE.md
+  - Desktop application:
+      - Desktop development alpha: DESKTOP.md
   - Engineering:
       - Development and testing: DEVELOPMENT.md
       - Operations and recovery: OPERATIONS.md
