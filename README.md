@@ -1,13 +1,14 @@
 # Open Source Discovery Lab
 
-> **Early community alpha · MIT licensed · local/self-hosted.** Join as a tester or contributor. Do not deploy this
-> version as an internet-facing service.
+> **Early community alpha · MIT licensed · two local-first applications.** Choose the self-hosted web app or the
+> native desktop app for macOS/Windows. Neither edition is a production-hosted SaaS.
 
 **From community conversations to useful open-source projects.**
 
-**Documentation:** [GitHub Pages website](https://savisaluwadana.github.io/Pain-Point-Analyzer/) (after Pages is enabled) · [Documentation index](docs/index.md) · [Full API reference](docs/API_REFERENCE.md) · [Developer guide](docs/DEVELOPMENT.md)
+**Documentation:** [Project website](https://savisaluwadana.github.io/Pain-Point-Analyzer/) · [Web/API documentation](docs/GETTING_STARTED.md) · [Desktop documentation](desktop/README.md) · [Developer guide](docs/DEVELOPMENT.md)
 
-**Get started:** [Reddit archive quick start](docs/ARCTIC_SHIFT.md) · [Five-minute fictional demo](docs/DEMO.md) ·
+**Get started:** [Choose an app](#choose-your-application) · [Web app setup](#web-app-quick-start) ·
+[Desktop app setup](#desktop-app-quick-start) · [Fictional demo](docs/DEMO.md) ·
 [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md) · [Architecture](#architecture) ·
 [Known limitations](#limitations) ·
 [Give alpha feedback](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/new/choose)
@@ -16,8 +17,9 @@ This project analyzes short, source-linked observations so contributors can **in
 potential open-source contributions. Themes are provisional hypotheses, not endorsements, verified demand, or a
 substitute for reading the original discussions.
 
-Open Source Discovery Lab is a locally operated research workspace for identifying recurring challenges, unmet needs,
-and opportunities to contribute practical software to the open-source ecosystem. Its **current intended use is
+Open Source Discovery Lab is available as **two independently installed applications** for identifying recurring
+challenges, unmet needs, and opportunities to contribute practical software to the open-source ecosystem. Its **current
+intended use is
 individual and non-commercial**: organize permitted community evidence, understand recurring issues, and explore freely
 available tools that could help address them.
 
@@ -27,6 +29,49 @@ the application is presented as **Open Source Discovery Lab**.
 > **What this project does:** collect permitted discussions and other evidence, retain source references, group
 > recurring themes, and help a developer evaluate ideas for useful open-source contributions. It does not represent
 > Reddit, speak on behalf of communities, or claim that popularity scores prove a particular solution is needed.
+
+## Choose your application
+
+Both applications belong to **one project** and share the same Rust `keywords-v2` analysis engine. They have
+**different storage, installation methods, and currently available features**.
+
+| | Web app (self-hosted) | Desktop app (native alpha) |
+| --- | --- | --- |
+| Best for | Developers who want source connectors, MCP workflows, and a browser-based local dashboard | Individuals who want a simpler installed app and offline manual research |
+| Where to find it | [`web/`](web/), [`api/`](api/), [`db/`](db/) | [`desktop/`](desktop/) |
+| Runs on | Browser at `http://localhost:3000` | Native macOS (Apple Silicon/Intel) or Windows (x64) window |
+| Installation | Docker Compose, with three local services | Development installer (`.dmg` or `.exe`) or build from source |
+| Backend and data | Next.js + Rust/Axum + PostgreSQL 17 | Tauri 2 + React/Vite + embedded Rust + SQLite |
+| Evidence collection | Eight bounded read-only connectors; approved direct Reddit OAuth is optional | Manual evidence entry and six fictional offline demo records |
+| Analysis | Shared deterministic Rust `keywords-v2`, with up to 10,000 records per selected run | Same analyzer over up to 1,000 local records |
+| Ideas and reviews | Saved reports, source-linked candidates, manual validation notes | Saved reports, candidate reviews, alternatives and decisions |
+| AI/MCP workflows | Optional external host bridge with 58 registered tools | **Not implemented in the desktop alpha** |
+| Data | Local PostgreSQL database | OS user-specific `research.sqlite3`; **no automatic sync or migration** |
+| Maturity | Early community alpha, **localhost-only** | Early development alpha, unsigned test installers |
+
+**Choose the [web app](#web-app-quick-start)** for permitted live source research and MCP integrations.
+**Choose the [desktop app](#desktop-app-quick-start)** for an offline-first evidence-to-opportunity workflow
+without running Docker after installation.
+
+> **Important:** The GitHub Pages [project website](https://savisaluwadana.github.io/Pain-Point-Analyzer/)
+> is **documentation only**, not a hosted instance of either application. The desktop app is not yet feature-equivalent
+> to the web app. Both are currently intended for individual, local, non-commercial research; MIT licenses the original
+> software code, not third-party community posts.
+
+### Repository layout
+
+```text
+Pain-Point-Analyzer/
+├── web/           Next.js self-hosted browser interface
+├── api/           Rust/Axum API, connectors, worker and MCP bridge
+├── db/            PostgreSQL migrations for the web edition
+├── desktop/       Tauri 2 + React native macOS/Windows app
+│   └── src-tauri/  Desktop Rust commands and embedded SQLite storage
+├── shared/        Rust keyword analysis used by both applications
+├── docs/          Public documentation and architectural references
+├── scripts/       Demo and integration test scripts
+└── compose.yaml   Web app's three-service local Docker setup
+```
 
 ## Community-first principles
 
@@ -48,7 +93,7 @@ the application is presented as **Open Source Discovery Lab**.
 See [Purpose, scope, and data use](docs/PURPOSE_AND_DATA_USE.md) for the project's scope, permissions, and data-handling
 practices.
 
-## What you can explore
+## What you can explore in the web app
 
 1. Browse public GitHub Issues, Hacker News comments, Stack Overflow questions, Bluesky posts, YouTube comments,
    allowlisted Discourse forums, and Medium topic RSS using read-only connectors.
@@ -64,7 +109,7 @@ The built-in categorization is heuristic, not a measurement of community support
 Live third-party connectivity depends on each provider's access terms and quotas; Reddit API access and live OAuth
 remain unverified.
 
-## Quick start: try it without external API credentials
+## Web app quick start
 
 Requirements: Docker Engine, Docker Compose v2, OpenSSL, `curl` and `jq`. Source code is public and
 [MIT-licensed](LICENSE), but third-party discussions retain their own terms and licenses.
@@ -113,7 +158,7 @@ For an agent-driven run, use `collect_reddit_archive` through the [MCP bridge](d
 needed. See [archive setup, examples and troubleshooting](docs/ARCTIC_SHIFT.md) or the full
 [connector guide](docs/SOURCES.md).
 
-## Manual setup details
+## Web app configuration and source collection
 
 To run the app without the demo, configure `.env` as described above and run `docker compose up --build -d --wait`. The
 application does not require Reddit API credentials for local research. Do not commit or share your `.env`.
@@ -135,11 +180,59 @@ Sources** to run a permitted source search, then **Evidence Library** or **Analy
 apply automatically. To stop without deleting data, use `docker compose down` (not `down -v`). Provider terms and quotas
 take precedence over internal request budgets.
 
+## Desktop app quick start
+
+The [native desktop edition](desktop/README.md) is an **early development alpha** for **macOS Apple Silicon,
+macOS Intel, and Windows x64**. It uses a Tauri window with local SQLite, without a web server or PostgreSQL
+container. It currently supports manual evidence, fictional demo records, local keyword analysis,
+opportunity reviews, and bounded JSON export.
+
+### Option A: Try a development installer
+
+1. Open [Desktop Tauri builds in GitHub Actions](https://github.com/savisaluwadana/Pain-Point-Analyzer/actions/workflows/desktop.yml).
+2. Open a **successful** run on `main` and expand **Artifacts** (GitHub sign-in may be needed).
+3. Download `discovery-lab-desktop-mac-apple-silicon`, `discovery-lab-desktop-mac-intel`,
+   or `discovery-lab-desktop-windows-x64`, as appropriate.
+4. Unzip the artifact to obtain the macOS `.dmg` or Windows `.exe` installer. Treat these as **unsigned,
+   unnotarized internal test builds**: installation may be blocked by operating-system security policies.
+   Do not bypass security warnings for a build you have not independently verified.
+
+GitHub Actions artifacts expire and may be unavailable; they are **not official signed Releases**.
+Do not mistake the older repository `v-1.0` release for the new desktop edition.
+
+### Option B: Run or build from source
+
+Requires Node.js 22+, npm, Rust stable, and the
+[Tauri 2 prerequisites for your OS](https://v2.tauri.app/start/prerequisites/).
+
+```bash
+git clone https://github.com/savisaluwadana/Pain-Point-Analyzer.git
+cd Pain-Point-Analyzer/desktop
+npm install
+npm run desktop:dev       # native development window
+# or:
+npm run desktop:build     # local platform installer
+```
+
+Use **Load fictional demo** to insert six synthetic records, then **Analyze & discover** and **Project ideas**.
+No external source API keys or AI subscription are required for this local workflow. Installed app data is held
+in the OS-specific per-user application directory, not in the web app's PostgreSQL volume.
+
+**Desktop limitations:** live source connectors, Reddit OAuth, the MCP tool suite, PostgreSQL-to-SQLite import,
+data restore, automatic updates, and signed production releases are **not yet included**. See the
+[desktop development guide](desktop/README.md), [desktop documentation](docs/DESKTOP.md), and
+[issue #44](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/44).
+
 ## Architecture
 
-Open Source Discovery Lab is a **local, three-service Docker Compose application**: a Next.js dashboard, a Rust API, and
-PostgreSQL. The Rust API also runs the Tokio background worker; the optional MCP adapter runs on the research host, not
-as another Compose service.
+The two applications **reuse the same Rust keyword-analysis implementation** in [`shared/scoring.rs`](shared/scoring.rs),
+but run independently and do **not** share a database.
+
+### Web app architecture
+
+The self-hosted web app uses **three local Docker Compose services**: a Next.js dashboard, a Rust API, and
+PostgreSQL. The Rust API also runs the Tokio background worker; the optional MCP adapter runs on the research
+host, not as another Compose service.
 
 ### System overview
 
@@ -236,19 +329,24 @@ See [the exact formula, limitations and validation](docs/ANALYSIS_QUALITY.md). O
 separate: no semantic model is silently downloaded or remote AI service contacted.
 
 
-## Desktop edition (development alpha)
-
-A separate [Tauri 2 desktop app](desktop/README.md) for **macOS and Windows** is being developed. Its first slice uses native React, private local SQLite and the **same Rust keyword-analysis engine** as this web/API edition. It supports manual evidence, six fictional demo items, saved analysis, opportunity review and JSON export. Desktop collectors, OAuth, MCP parity, import/restore and signed installers are **not yet shipped**. See [desktop setup, scope and security](desktop/README.md) and [issue #44](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/44).
-
 ## Technical development
 
+Run from the repository root:
+
 ```bash
+# Web app
 (cd api && cargo check --all-targets --locked && cargo test --locked)
 (cd web && npm ci && npm run typecheck && npm run build)
+
+# Desktop app
+(cd desktop && npm install && npm run build)
+cargo test --manifest-path desktop/src-tauri/Cargo.toml
 ```
 
-Run these checks from the repository root. CI covers the Rust API, Next.js production build, Docker configuration and a
-PostgreSQL-backed integration flow. It does not establish approval or test real Reddit OAuth credentials.
+GitHub Actions has [web/API integration checks](.github/workflows/ci.yml) and a separate
+[macOS/Windows desktop build matrix](.github/workflows/desktop.yml).
+A successful build does not replace native installer testing, security reviews, provider authorization,
+or Apple/Windows code signing.
 
 See [Architecture](docs/ARCHITECTURE.md), [Source connector guide](docs/SOURCES.md), and
 [MCP host configuration](docs/MCP.md).
@@ -275,17 +373,18 @@ controls.
 - No Reddit login bypass, scraping workaround, or commercial data license is implemented.
 - Scores and inferred themes should be checked against original sources and contradictory evidence.
 - Real-world acceptance, concurrency/load evaluation, and production security review remain separate from passing CI.
-- Historical MongoDB data is not imported; this is a fresh PostgreSQL application.
+- Historical MongoDB data is not imported into the web edition; the desktop edition also has no PostgreSQL importer.
 - Source collection is one page per action, not continuous monitoring. Arctic Shift may lag or omit content; archived
   rankings and current deletions are not verified. A small archive smoke test passed, but adapters are **not yet
   live-certified** against every provider.
 - Built-in topic analysis is keyword-based; the optional MCP host performs separate model reasoning.
-- The GitHub release tag `v-1.0` is from an older codebase. New alpha release notes are a
+- The GitHub release tag `v-1.0` is from an older codebase and is **not a desktop installer**. New alpha release notes are a
   [draft](docs/ALPHA_RELEASE_NOTES.md), not a published stable release.
 
 ## Community and support
 
-This is a call for **alpha testers and contributors**. Try the [fictional six-item demo](docs/DEMO.md), then tell us
+This is a call for **alpha testers and contributors to both applications**. Try the
+[web demo](docs/DEMO.md) or the [desktop demo](desktop/README.md), then tell us
 what succeeded or failed with the
 [alpha feedback issue template](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/new/choose). Please do not
 attach tokens or real private post text.
