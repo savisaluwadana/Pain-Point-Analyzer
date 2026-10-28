@@ -193,9 +193,11 @@ opportunity reviews, and bounded JSON export.
 2. Open a **successful** run on `main` and expand **Artifacts** (GitHub sign-in may be needed).
 3. Download `discovery-lab-desktop-mac-apple-silicon`, `discovery-lab-desktop-mac-intel`,
    or `discovery-lab-desktop-windows-x64`, as appropriate.
-4. Unzip the artifact to obtain the macOS `.dmg` or Windows `.exe` installer. Treat these as **unsigned,
-   unnotarized internal test builds**: installation may be blocked by operating-system security policies.
-   Do not bypass security warnings for a build you have not independently verified.
+4. Unzip the artifact. Windows builds contain an `.exe` installer; macOS builds contain a `.dmg` (when
+   packaging succeeds) and a backup `.app.zip`. Mac builds are **ad-hoc signed but not Apple Developer signed
+   or notarized**. Gatekeeper can still block them. See the
+   [macOS damaged-app troubleshooting guide](desktop/README.md#macos-app-is-damaged-and-cant-be-opened)
+   before attempting to launch. Never disable Gatekeeper globally or bypass a failed signature check.
 
 GitHub Actions artifacts expire and may be unavailable; they are **not official signed Releases**.
 Do not mistake the older repository `v-1.0` release for the new desktop edition.

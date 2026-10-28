@@ -68,13 +68,65 @@ jobs:
           npm run build
       - name: Rust workspace and shared analyzer tests
         run: cargo test --manifest-path desktop/src-tauri/Cargo.toml
-      - name: Build native installer
+      - name: Build Windows native installer
+        if: runner.os == 'Windows'
         working-directory: desktop
-        run: npm run desktop:build -- --bundles ${{ matrix.bundle }} --target ${{ matrix.target }}
+        run: npm run desktop:build -- --bundles nsis --target ${{ matrix.target }}
+      - name: Build and verify macOS app bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          npm exec -- tauri build --no-bundle --target ${{ matrix.target }}
+          npm exec -- tauri bundle --bundles app --target ${{ matrix.target }}
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
+          app="$bundle_dir/macos/Open Source Discovery Lab.app"
+          test -d "$app"
+          # A valid ad-hoc signature helps prevent macOS treating an unsigned
+          # Apple Silicon executable as corrupt. It is NOT Developer ID notarization.
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv --verbose=4 "$app" 2>&1 | grep -E 'Signature=|Identifier=|TeamIdentifier='
+          mkdir -p "$bundle_dir/test-artifacts"
+          ditto -c -k --sequesterRsrc --keepParent "$app" \
+            "$bundle_dir/test-artifacts/Open Source Discovery Lab-${{ matrix.suffix }}-adhoc.app.zip"
+          echo "::notice::macOS test app is ad-hoc signed but NOT notarized. Gatekeeper may still block it."
+      - name: Create and verify macOS DMG when possible
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
+          # hdiutil may intermittently refuse to detach a temporary image on
+          # macOS GitHub runners. Keep the verified .app ZIP as a fallback.
+          success=0
+          for attempt in 1 2 3; do
+            if npm exec -- tauri bundle --bundles dmg --target ${{ matrix.target }}; then
+              success=1
+              break
+            fi
+            echo "::warning::DMG bundling attempt $attempt failed (possibly hdiutil Resource busy)."
+            sleep 12
+          done
+          if [ "$success" -eq 1 ]; then
+            shopt -s nullglob
+            images=("$bundle_dir"/dmg/*.dmg)
+            if [ "${#images[@]}" -eq 0 ]; then
+              echo "::error::DMG command succeeded without producing a disk image"
+              exit 1
+            fi
+            for dmg in "${images[@]}"; do
+              hdiutil verify "$dmg"
+            done
+          else
+            echo "::warning::DMG was not generated; use the verified ad-hoc .app ZIP test artifact instead."
+          fi
       - uses: actions/upload-artifact@v4
         with:
-          name: discovery-lab-desktop-${{ matrix.suffix }}
+          name: discovery-lab-desktop-${{ matrix.suffix }}-test
           path: |
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.dmg
             desktop/src-tauri/target/${{ matrix.target }}/release/bundle/**/*.exe
+            desktop/src-tauri/target/${{ matrix.target }}/release/bundle/test-artifacts/*.zip
           if-no-files-found: error
