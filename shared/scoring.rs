@@ -559,11 +559,15 @@ mod tests {
     fn near_identical_cross_source_excerpts_do_not_inflate_story_count() {
         let base = "Manual reporting for this imaginary community workspace takes multiple hours every week and requires copying notes to a spreadsheet by hand";
         let a = EvidenceText {
-            id: Uuid::from_u128(1), source_id: "first".into(), source_kind: "github".into(),
+            id: Uuid::from_u128(1),
+            source_id: "first".into(),
+            source_kind: "github".into(),
             text: format!("{base}."),
         };
         let b = EvidenceText {
-            id: Uuid::from_u128(2), source_id: "second".into(), source_kind: "discourse".into(),
+            id: Uuid::from_u128(2),
+            source_id: "second".into(),
+            source_kind: "discourse".into(),
             text: format!("{}!", base.to_uppercase()),
         };
         let result = analyze(&[a, b]);
@@ -574,12 +578,25 @@ mod tests {
     #[test]
     fn bluesky_replies_share_the_root_discussion_identity() {
         let root = "at://did:plc:example/app.bsky.feed.post/3root";
-        let reply = analysis_source_id("bluesky", "at://did:plc:example/app.bsky.feed.post/3reply",
-            &serde_json::json!({"details":{"root_uri":root}}));
+        let reply = analysis_source_id(
+            "bluesky",
+            "at://did:plc:example/app.bsky.feed.post/3reply",
+            &serde_json::json!({"details":{"root_uri":root}}),
+        );
         assert_eq!(reply, root);
         let posts = vec![
-            EvidenceText { id: Uuid::from_u128(1), source_id: root.into(), source_kind: "bluesky".into(), text: "manual reporting is slow".into() },
-            EvidenceText { id: Uuid::from_u128(2), source_id: reply, source_kind: "bluesky".into(), text: "manual reconciliation is slow".into() },
+            EvidenceText {
+                id: Uuid::from_u128(1),
+                source_id: root.into(),
+                source_kind: "bluesky".into(),
+                text: "manual reporting is slow".into(),
+            },
+            EvidenceText {
+                id: Uuid::from_u128(2),
+                source_id: reply,
+                source_kind: "bluesky".into(),
+                text: "manual reconciliation is slow".into(),
+            },
         ];
         assert_eq!(analyze(&posts).independent_stories, 1);
     }
