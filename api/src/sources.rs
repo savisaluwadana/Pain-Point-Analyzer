@@ -3,8 +3,7 @@
 use crate::{
     bad, internal, oauth,
     research::{assert_project, link_project},
-    scoring,
-    ApiError, ApiResult, AppState,
+    scoring, ApiError, ApiResult, AppState,
 };
 use axum::{
     extract::State,
@@ -271,8 +270,10 @@ fn bluesky_findings(v: &Value) -> Vec<Finding> {
 fn bluesky_queries(topic: &str, now: DateTime<Utc>) -> Vec<String> {
     let topic = topic.trim();
     // Respect intentional search operators or quoted searches from power users.
-    if topic.contains('"') || ["lang:", "since:", "until:", "from:", "mentions:"]
-        .iter().any(|operator| topic.contains(operator))
+    if topic.contains('"')
+        || ["lang:", "since:", "until:", "from:", "mentions:"]
+            .iter()
+            .any(|operator| topic.contains(operator))
     {
         return vec![topic.to_owned()];
     }
@@ -302,7 +303,8 @@ async fn collect_bluesky(client: &Client, topic: &str, limit: usize) -> ApiResul
                 endpoint.query_pairs_mut().append_pair("cursor", value);
             }
             let payload = get_json(client, "bluesky", endpoint, None).await?;
-            let next = payload["cursor"].as_str()
+            let next = payload["cursor"]
+                .as_str()
                 .filter(|value| !value.is_empty() && value.len() <= 512)
                 .map(str::to_owned);
             for entry in bluesky_findings(&payload) {
@@ -327,7 +329,8 @@ async fn collect_bluesky(client: &Client, topic: &str, limit: usize) -> ApiResul
     }
 
     // Replies are optional; deleted/unavailable threads must not erase primary results.
-    let roots = found.iter()
+    let roots = found
+        .iter()
         .filter(|finding| {
             let item = scoring::EvidenceText {
                 id: Uuid::nil(),
@@ -337,7 +340,9 @@ async fn collect_bluesky(client: &Client, topic: &str, limit: usize) -> ApiResul
             };
             !scoring::analyze(&[item]).clusters.is_empty()
         })
-        .take(2).map(|finding| finding.id.clone()).collect::<Vec<_>>();
+        .take(2)
+        .map(|finding| finding.id.clone())
+        .collect::<Vec<_>>();
     for root in roots {
         if found.len() >= limit {
             break;
@@ -353,7 +358,9 @@ async fn collect_bluesky(client: &Client, topic: &str, limit: usize) -> ApiResul
                 continue;
             }
         };
-        let Ok(response) = serde_json::from_slice::<Value>(&bytes) else { continue };
+        let Ok(response) = serde_json::from_slice::<Value>(&bytes) else {
+            continue;
+        };
         let Some(replies) = response.pointer("/thread/replies").and_then(Value::as_array) else {
             continue;
         };
@@ -757,7 +764,10 @@ mod tests {
         assert_eq!(queries.len(), 2);
         assert!(queries[0].contains("lang:en since:2026-10-02"));
         assert!(queries[1].contains("wish there was"));
-        assert_eq!(bluesky_queries("from:alice.bsky.social", now), vec!["from:alice.bsky.social"]);
+        assert_eq!(
+            bluesky_queries("from:alice.bsky.social", now),
+            vec!["from:alice.bsky.social"]
+        );
     }
     #[test]
     fn bluesky_reply_metadata_and_opt_out_remain_enforced() {
@@ -770,7 +780,10 @@ mod tests {
         ]});
         let items = bluesky_findings(&posts);
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].metadata["root_uri"], "at://did:plc:root/app.bsky.feed.post/3root");
+        assert_eq!(
+            items[0].metadata["root_uri"],
+            "at://did:plc:root/app.bsky.feed.post/3root"
+        );
     }
     #[tokio::test]
     async fn offline_http_error_and_payload_contract() {
@@ -780,18 +793,25 @@ mod tests {
             .route("/limited", get(|| async { StatusCode::TOO_MANY_REQUESTS }))
             .route("/oversize", get(|| async { "x".repeat(1_048_577) }))
             .route("/malformed", get(|| async { "not JSON" }))
-            .route("/redirect", get(|| async { (StatusCode::FOUND, [("Location", "/malformed")]) }))
-            .route("/slow", get(|| async {
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                "{}"
-            }));
+            .route(
+                "/redirect",
+                get(|| async { (StatusCode::FOUND, [("Location", "/malformed")]) }),
+            )
+            .route(
+                "/slow",
+                get(|| async {
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    "{}"
+                }),
+            );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let client = Client::builder()
             .timeout(std::time::Duration::from_millis(100))
             .redirect(reqwest::redirect::Policy::none())
-            .build().unwrap();
+            .build()
+            .unwrap();
         for (route, code) in [
             ("/forbidden", StatusCode::FAILED_DEPENDENCY),
             ("/limited", StatusCode::TOO_MANY_REQUESTS),
@@ -800,12 +820,20 @@ mod tests {
             ("/slow", StatusCode::BAD_GATEWAY),
         ] {
             let error = fetch_bytes(&client, "bluesky", Url::parse(&format!("{base}{route}")).unwrap(), None)
-                .await.unwrap_err();
+                .await
+                .unwrap_err();
             assert_eq!(error.0, code, "{route}");
         }
         assert_eq!(
-            get_json(&client, "bluesky", Url::parse(&format!("{base}/malformed")).unwrap(), None)
-                .await.unwrap_err().0,
+            get_json(
+                &client,
+                "bluesky",
+                Url::parse(&format!("{base}/malformed")).unwrap(),
+                None
+            )
+            .await
+            .unwrap_err()
+            .0,
             StatusCode::BAD_GATEWAY
         );
         server.abort();
