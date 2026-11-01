@@ -3,6 +3,7 @@
 use crate::{
     bad, internal, oauth,
     research::{assert_project, link_project},
+    scoring,
     ApiError, ApiResult, AppState,
 };
 use axum::{
@@ -10,12 +11,12 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Json,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use reqwest::{Client, StatusCode as UpstreamStatus};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use sqlx::types::Uuid;
-use std::env;
+use std::{collections::HashSet, env};
 use url::Url;
 
 #[derive(Deserialize)]
@@ -158,7 +159,7 @@ async fn fetch_bytes(client: &Client, source: &str, url: Url, auth: Option<(&str
         .header("Accept", "application/json, application/rss+xml;q=0.9, */*;q=0.5")
         .header(
             "User-Agent",
-            "OpenSourceDiscoveryLab/0.1 (+https://github.com/savisaluwadana/Reddit-post-Analyzer)",
+            "OpenSourceDiscoveryLab/0.1 (+https://github.com/savisaluwadana/Pain-Point-Analyzer)",
         );
     if let Some((name, token)) = auth {
         req = req.header(name, token);
@@ -257,6 +258,7 @@ fn bluesky_findings(v: &Value) -> Vec<Finding> {
                         published: get_date(&raw(x, "/record/createdAt")),
                         metadata: json!({
                             "indexed_at": x["indexedAt"],
+                            "root_uri": x.pointer("/record/reply/root/uri").and_then(Value::as_str),
                             "source": "Bluesky AppView (api.bsky.app)",
                         }),
                     })
@@ -265,6 +267,115 @@ fn bluesky_findings(v: &Value) -> Vec<Finding> {
         })
         .unwrap_or_default()
 }
+
+fn bluesky_queries(topic: &str, now: DateTime<Utc>) -> Vec<String> {
+    let topic = topic.trim();
+    // Respect intentional search operators or quoted searches from power users.
+    if topic.contains('"') || ["lang:", "since:", "until:", "from:", "mentions:"]
+        .iter().any(|operator| topic.contains(operator))
+    {
+        return vec![topic.to_owned()];
+    }
+    let since = (now - Duration::days(30)).format("%Y-%m-%d");
+    let filter = format!(" lang:en since:{since}");
+    vec![
+        format!("{topic}{filter}"),
+        format!("\"wish there was\" {topic}{filter}"),
+    ]
+}
+/// Bounded read-only search: at most two templates, two pages each and two thread lookups.
+async fn collect_bluesky(client: &Client, topic: &str, limit: usize) -> ApiResult<Vec<Finding>> {
+    let mut found = Vec::new();
+    let mut ids = HashSet::new();
+    // Reserve two slots for depth-one replies revealing attempted workarounds.
+    let primary_limit = if limit >= 4 { limit - 2 } else { limit };
+    for query in bluesky_queries(topic, Utc::now()) {
+        let mut cursor: Option<String> = None;
+        let mut cursors = HashSet::new();
+        for _ in 0..2 {
+            let page_size = primary_limit.to_string();
+            let mut endpoint = uri(
+                "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts",
+                &[("q", &query), ("limit", &page_size)],
+            )?;
+            if let Some(value) = cursor.as_deref() {
+                endpoint.query_pairs_mut().append_pair("cursor", value);
+            }
+            let payload = get_json(client, "bluesky", endpoint, None).await?;
+            let next = payload["cursor"].as_str()
+                .filter(|value| !value.is_empty() && value.len() <= 512)
+                .map(str::to_owned);
+            for entry in bluesky_findings(&payload) {
+                if ids.insert(entry.id.clone()) {
+                    found.push(entry);
+                }
+                if found.len() >= primary_limit {
+                    break;
+                }
+            }
+            if found.len() >= primary_limit {
+                break;
+            }
+            match next {
+                Some(value) if cursors.insert(value.clone()) => cursor = Some(value),
+                _ => break,
+            }
+        }
+        if found.len() >= primary_limit {
+            break;
+        }
+    }
+
+    // Replies are optional; deleted/unavailable threads must not erase primary results.
+    let roots = found.iter()
+        .filter(|finding| {
+            let item = scoring::EvidenceText {
+                id: Uuid::nil(),
+                source_id: finding.id.clone(),
+                source_kind: "bluesky".into(),
+                text: finding.body.clone(),
+            };
+            !scoring::analyze(&[item]).clusters.is_empty()
+        })
+        .take(2).map(|finding| finding.id.clone()).collect::<Vec<_>>();
+    for root in roots {
+        if found.len() >= limit {
+            break;
+        }
+        let endpoint = uri(
+            "https://api.bsky.app/xrpc/app.bsky.feed.getPostThread",
+            &[("uri", &root), ("depth", "1"), ("parentHeight", "0")],
+        )?;
+        let bytes = match fetch_bytes(client, "bluesky", endpoint, None).await {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                tracing::warn!(status = %error.0, "Bluesky replies unavailable; preserving primary results");
+                continue;
+            }
+        };
+        let Ok(response) = serde_json::from_slice::<Value>(&bytes) else { continue };
+        let Some(replies) = response.pointer("/thread/replies").and_then(Value::as_array) else {
+            continue;
+        };
+        for reply in replies.iter().take(25) {
+            let envelope = json!({"posts": [&reply["post"]]});
+            for mut entry in bluesky_findings(&envelope) {
+                entry.metadata["root_uri"] = json!(root);
+                if ids.insert(entry.id.clone()) {
+                    found.push(entry);
+                }
+                if found.len() >= limit {
+                    break;
+                }
+            }
+            if found.len() >= limit {
+                break;
+            }
+        }
+    }
+    Ok(found)
+}
+
 async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> ApiResult<Vec<Finding>> {
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(15))
@@ -316,16 +427,7 @@ async fn collect_upstream(source: &str, q: &str, target: &str, limit: usize) -> 
             }
             stackoverflow_findings(&v)
         }
-        "bluesky" => {
-            // public.api.bsky.app is a cached mirror that answers searchPosts with 403;
-            // api.bsky.app serves unauthenticated search.
-            let u = uri(
-                "https://api.bsky.app/xrpc/app.bsky.feed.searchPosts",
-                &[("q", q), ("limit", &n)],
-            )?;
-            let v = get_json(&client, source, u, None).await?;
-            bluesky_findings(&v)
-        }
+        "bluesky" => collect_bluesky(&client, q, limit).await?,
         "youtube" => {
             let id = youtube_id(target)?;
             let key = required_env("YOUTUBE_API_KEY", "YouTube collection requires YOUTUBE_API_KEY")?;
@@ -647,6 +749,68 @@ mod tests {
         assert!(found[0].body.contains("nightmare"));
         assert!(found[0].published.is_some());
     }
+
+    #[test]
+    fn bluesky_search_queries_preserve_operators_and_limit_expansion() {
+        let now = get_date("2026-11-01T12:00:00Z").unwrap();
+        let queries = bluesky_queries("invoicing", now);
+        assert_eq!(queries.len(), 2);
+        assert!(queries[0].contains("lang:en since:2026-10-02"));
+        assert!(queries[1].contains("wish there was"));
+        assert_eq!(bluesky_queries("from:alice.bsky.social", now), vec!["from:alice.bsky.social"]);
+    }
+    #[test]
+    fn bluesky_reply_metadata_and_opt_out_remain_enforced() {
+        let posts = json!({"posts": [
+            {"uri":"at://did:plc:reply/app.bsky.feed.post/3reply","author":{"handle":"reply.bsky.social"},
+             "record":{"text":"manual workaround","reply":{"root":{"uri":"at://did:plc:root/app.bsky.feed.post/3root"}}}},
+            {"uri":"at://did:plc:private/app.bsky.feed.post/3private",
+             "author":{"handle":"private.bsky.social","labels":[{"val":"!no-unauthenticated"}]},
+             "record":{"text":"should not be visible"}}
+        ]});
+        let items = bluesky_findings(&posts);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].metadata["root_uri"], "at://did:plc:root/app.bsky.feed.post/3root");
+    }
+    #[tokio::test]
+    async fn offline_http_error_and_payload_contract() {
+        use axum::{routing::get, Router};
+        let app = Router::new()
+            .route("/forbidden", get(|| async { StatusCode::FORBIDDEN }))
+            .route("/limited", get(|| async { StatusCode::TOO_MANY_REQUESTS }))
+            .route("/oversize", get(|| async { "x".repeat(1_048_577) }))
+            .route("/malformed", get(|| async { "not JSON" }))
+            .route("/redirect", get(|| async { (StatusCode::FOUND, [("Location", "/malformed")]) }))
+            .route("/slow", get(|| async {
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                "{}"
+            }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = Client::builder()
+            .timeout(std::time::Duration::from_millis(100))
+            .redirect(reqwest::redirect::Policy::none())
+            .build().unwrap();
+        for (route, code) in [
+            ("/forbidden", StatusCode::FAILED_DEPENDENCY),
+            ("/limited", StatusCode::TOO_MANY_REQUESTS),
+            ("/oversize", StatusCode::BAD_GATEWAY),
+            ("/redirect", StatusCode::BAD_GATEWAY),
+            ("/slow", StatusCode::BAD_GATEWAY),
+        ] {
+            let error = fetch_bytes(&client, "bluesky", Url::parse(&format!("{base}{route}")).unwrap(), None)
+                .await.unwrap_err();
+            assert_eq!(error.0, code, "{route}");
+        }
+        assert_eq!(
+            get_json(&client, "bluesky", Url::parse(&format!("{base}/malformed")).unwrap(), None)
+                .await.unwrap_err().0,
+            StatusCode::BAD_GATEWAY
+        );
+        server.abort();
+    }
+
     #[test]
     fn bounds_and_untrusted_urls() {
         assert!(medium_tag("open-source").is_ok());
