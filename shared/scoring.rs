@@ -167,6 +167,10 @@ pub fn analysis_source_id(kind: &str, original: &str, metadata: &serde_json::Val
                 .filter(|host| !host.is_empty())
                 .map(|host| format!("{host}:thread:{id}"))
         }),
+        "bluesky" => details["root_uri"]
+            .as_str()
+            .filter(|uri| uri.starts_with("at://"))
+            .map(str::to_owned),
         "youtube" => details["video_id"]
             .as_str()
             .filter(|id| !id.is_empty())
@@ -214,12 +218,9 @@ pub fn analyze(evidence: &[EvidenceText]) -> Report {
         if let Some(j) = threads.insert(story_key(item), i) {
             unite(&mut parents, i, j);
         }
-        let normalized = item
-            .text
-            .to_lowercase()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
+        // Cross-posted excerpts may differ only in punctuation, whitespace or case.
+        // Keep the long-text threshold to avoid merging unrelated short complaints.
+        let normalized = tokens(&item.text).join(" ");
         if normalized.chars().count() >= 100 {
             if let Some(j) = copies.insert(normalized, i) {
                 unite(&mut parents, i, j);
@@ -553,6 +554,53 @@ mod tests {
         assert_eq!(report.clusters[0].severity_score, report.clusters[1].severity_score);
         assert!(!report.clusters[0].sufficient_evidence);
     }
+
+    #[test]
+    fn near_identical_cross_source_excerpts_do_not_inflate_story_count() {
+        let base = "Manual reporting for this imaginary community workspace takes multiple hours every week and requires copying notes to a spreadsheet by hand";
+        let a = EvidenceText {
+            id: Uuid::from_u128(1),
+            source_id: "first".into(),
+            source_kind: "github".into(),
+            text: format!("{base}."),
+        };
+        let b = EvidenceText {
+            id: Uuid::from_u128(2),
+            source_id: "second".into(),
+            source_kind: "discourse".into(),
+            text: format!("{}!", base.to_uppercase()),
+        };
+        let result = analyze(&[a, b]);
+        assert_eq!(result.evidence_scanned, 2);
+        assert_eq!(result.independent_stories, 1);
+        assert_eq!(result.clusters[0].independent_stories, 1);
+    }
+    #[test]
+    fn bluesky_replies_share_the_root_discussion_identity() {
+        let root = "at://did:plc:example/app.bsky.feed.post/3root";
+        let reply = analysis_source_id(
+            "bluesky",
+            "at://did:plc:example/app.bsky.feed.post/3reply",
+            &serde_json::json!({"details":{"root_uri":root}}),
+        );
+        assert_eq!(reply, root);
+        let posts = vec![
+            EvidenceText {
+                id: Uuid::from_u128(1),
+                source_id: root.into(),
+                source_kind: "bluesky".into(),
+                text: "manual reporting is slow".into(),
+            },
+            EvidenceText {
+                id: Uuid::from_u128(2),
+                source_id: reply,
+                source_kind: "bluesky".into(),
+                text: "manual reconciliation is slow".into(),
+            },
+        ];
+        assert_eq!(analyze(&posts).independent_stories, 1);
+    }
+
     #[test]
     fn provider_parent_groups_keep_forums_separate() {
         use serde_json::json;

@@ -6,9 +6,9 @@
   `terror`, neutral `pricing`, `not slow`, and `no errors` do not create complaints. `not only slow` remains positive.
 - Eight explicit rule categories remain. Unclassified records are counted; paraphrases, irony and complex negation
   can still be missed. Manual-work terms are proxies, not proof that a task is unwanted.
-- Union-find merges provider threads and normalized exact copies of at least 100 characters transitively. Sorting by
+- Union-find merges provider threads and token-identical long excerpts of at least 100 characters transitively, ignoring casing and punctuation. Sorting by
   evidence UUID makes grouping and output stable across input permutations. Reddit direct/archive forms share thread
-  identities; HN stories, Discourse host/topic pairs and YouTube videos use stored parent metadata when available.
+  identities; HN stories, Discourse host/topic pairs, Bluesky root/reply chains and YouTube videos use stored parent metadata when available.
   Missing metadata falls back to the source record. Similar paraphrases are not deduplicated.
 - Each group counts once. A copied group gets one canonical provider family from its lowest-UUID member, so cross-posts
   cannot inflate source diversity. This is an explicit deterministic convention, not a credibility assessment.
@@ -43,7 +43,7 @@ Representative excerpts currently use the beginning of the selected record, not 
 ## Verification
 
 Rust regressions cover lexical traps, negation, transitive copy/thread grouping, stable ordering, sparse evidence,
-non-saturating raw ranking and report-text exclusion. Offline provider tests cover JSON container shape changes,
+non-saturating raw ranking and report-text exclusion. Offline provider tests include a temporary loopback-only mock server exercising 403, 429, redirects, malformed JSON, timeout and oversized responses. They also cover JSON container shape changes,
 synthetic parser records, bad IDs, attribution and bounded excerpts. Existing permission/rate-limit tests remain.
 Frontend tests cover legacy reports, coverage warnings, supporting excerpts, unavailable evidence and unsafe links.
 PostgreSQL integration checks cover real date filtering, truncation, stored-report text exclusion, content changes,
