@@ -120,7 +120,7 @@ fn valid_source_url(raw: &str) -> Result<(),String> {
     if !matches!(url.scheme(),"http"|"https") {return Err("Only HTTP and HTTPS source links are allowed".into());}
     let host=url.host_str().unwrap_or("").to_ascii_lowercase();
     let host=host.trim_end_matches('.');
-    if matches!(host.as_str(), "reddit.com"|"redd.it") || host.ends_with(".reddit.com") || host.ends_with(".redd.it") {
+    if matches!(host, "reddit.com"|"redd.it") || host.ends_with(".reddit.com") || host.ends_with(".redd.it") {
         return Err("Reddit content requires an approved provider connector; manual import is disabled".into());
     }
     Ok(())
