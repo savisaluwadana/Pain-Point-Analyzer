@@ -380,7 +380,13 @@ mod comment_tests {
     use super::*;
     #[test]
     fn reddit_hosts_reject_trailing_dots_and_preserve_other_hosts() {
-        for host in ["reddit.com", "REDDIT.COM.", "www.reddit.com.", "redd.it.", "www.redd.it."] {
+        for host in [
+            "reddit.com",
+            "REDDIT.COM.",
+            "www.reddit.com.",
+            "redd.it.",
+            "www.redd.it.",
+        ] {
             assert!(is_reddit_host(host), "{host}");
         }
         for host in ["notreddit.com", "example.com", "redd.it.example.com"] {
