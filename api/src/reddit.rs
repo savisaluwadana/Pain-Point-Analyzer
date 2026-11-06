@@ -59,7 +59,7 @@ fn id_ok(id: &str) -> bool {
     (1..=16).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_alphanumeric())
 }
 pub(crate) fn is_reddit_host(host: &str) -> bool {
-    let host = host.to_ascii_lowercase();
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
     host == "reddit.com" || host.ends_with(".reddit.com") || host == "redd.it" || host.ends_with(".redd.it")
 }
 fn configured_limit(name: &str, default: i32, max: i32) -> i32 {
@@ -378,6 +378,15 @@ pub(crate) async fn fetch_comments(
 #[cfg(test)]
 mod comment_tests {
     use super::*;
+    #[test]
+    fn reddit_hosts_reject_trailing_dots_and_preserve_other_hosts() {
+        for host in ["reddit.com", "REDDIT.COM.", "www.reddit.com.", "redd.it.", "www.redd.it."] {
+            assert!(is_reddit_host(host), "{host}");
+        }
+        for host in ["notreddit.com", "example.com", "redd.it.example.com"] {
+            assert!(!is_reddit_host(host), "{host}");
+        }
+    }
     #[test]
     fn nested_comments_are_bounded_and_exclude_deleted() {
         let value = serde_json::json!({

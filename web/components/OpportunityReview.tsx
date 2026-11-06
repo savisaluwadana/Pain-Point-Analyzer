@@ -43,7 +43,8 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
       return;
     }
     setExpanded(true);
-    if (brief) return;
+    // A source excerpt may have expired or been deleted since the last expansion.
+    setBrief(null);
     setLoading(true);
     setError('');
     try {

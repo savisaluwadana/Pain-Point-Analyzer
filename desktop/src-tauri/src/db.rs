@@ -91,23 +91,27 @@ pub fn open(path: &Path) -> Result<DesktopDb, String> {
 fn read_evidence(row: &rusqlite::Row<'_>) -> rusqlite::Result<Evidence> {
     Ok(Evidence { id:row.get(0)?, source_kind:row.get(1)?, source_id:row.get(2)?, source_url:row.get(3)?, title:row.get(4)?, body:row.get(5)?, created_at:row.get(6)? })
 }
-fn evidence(conn: &Connection) -> Result<Vec<Evidence>, String> {
-    let mut q = conn.prepare("SELECT id,source_kind,source_id,source_url,title,body,created_at FROM evidence ORDER BY created_at DESC,id DESC LIMIT 500").map_err(|e| e.to_string())?;
-    let rows = q.query_map([], read_evidence).map_err(|e| e.to_string())?.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?;
+fn evidence(conn: &Connection, limit: i64) -> Result<Vec<Evidence>, String> {
+    let mut q = conn.prepare("SELECT id,source_kind,source_id,source_url,title,body,created_at FROM evidence ORDER BY created_at DESC,id DESC LIMIT ?1").map_err(|e| e.to_string())?;
+    let rows = q.query_map(params![limit], read_evidence).map_err(|e| e.to_string())?.collect::<rusqlite::Result<Vec<_>>>().map_err(|e| e.to_string())?;
     Ok(rows)
 }
-fn reports(conn: &Connection) -> Result<Vec<ResearchRun>,String> {
-    let mut stmt=conn.prepare("SELECT id,topic,report_json,created_at FROM research_runs ORDER BY created_at DESC,id DESC LIMIT 100").map_err(|e|e.to_string())?;
-    let rows=stmt.query_map([], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?))).map_err(|e|e.to_string())?;
+fn reports(conn: &Connection, limit: i64) -> Result<Vec<ResearchRun>,String> {
+    let mut stmt=conn.prepare("SELECT id,topic,report_json,created_at FROM research_runs ORDER BY created_at DESC,id DESC LIMIT ?1").map_err(|e|e.to_string())?;
+    let rows=stmt.query_map(params![limit], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?))).map_err(|e|e.to_string())?;
     rows.map(|r| {let (id,topic,raw,created_at)=r.map_err(|e|e.to_string())?;let report=serde_json::from_str(&raw).map_err(|e|e.to_string())?;Ok(ResearchRun{id,topic,report,created_at})}).collect()
 }
-fn opportunities(conn: &Connection) -> Result<Vec<Opportunity>,String> {
-    let mut q=conn.prepare("SELECT id,run_id,title,score,independent_stories,evidence_refs,decision,existing_solutions,validation_notes,created_at FROM opportunities ORDER BY created_at DESC,id DESC LIMIT 200").map_err(|e|e.to_string())?;
-    let rows=q.query_map([], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,f64>(3)?,r.get::<_,i64>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?,r.get::<_,String>(7)?,r.get::<_,String>(8)?,r.get::<_,String>(9)?))).map_err(|e|e.to_string())?;
+fn opportunities(conn: &Connection, limit: i64) -> Result<Vec<Opportunity>,String> {
+    let mut q=conn.prepare("SELECT id,run_id,title,score,independent_stories,evidence_refs,decision,existing_solutions,validation_notes,created_at FROM opportunities ORDER BY created_at DESC,id DESC LIMIT ?1").map_err(|e|e.to_string())?;
+    let rows=q.query_map(params![limit], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,f64>(3)?,r.get::<_,i64>(4)?,r.get::<_,String>(5)?,r.get::<_,String>(6)?,r.get::<_,String>(7)?,r.get::<_,String>(8)?,r.get::<_,String>(9)?))).map_err(|e|e.to_string())?;
     rows.map(|r|{let (id,run_id,title,score,n,refs,decision,existing_solutions,validation_notes,created_at)=r.map_err(|e|e.to_string())?;let evidence_refs=serde_json::from_str(&refs).map_err(|e|e.to_string())?;Ok(Opportunity{id,run_id,title,score,independent_stories:n.max(0) as usize,evidence_refs,decision,existing_solutions,validation_notes,created_at})}).collect()
 }
+fn workspace_with_limits(conn: &Connection, evidence_limit: i64, run_limit: i64, opportunity_limit: i64) -> Result<Workspace,String> {
+    Ok(Workspace{evidence:evidence(conn,evidence_limit)?,runs:reports(conn,run_limit)?,opportunities:opportunities(conn,opportunity_limit)?})
+}
 pub fn workspace(conn: &Connection) -> Result<Workspace,String> {
-    Ok(Workspace{evidence:evidence(conn)?,runs:reports(conn)?,opportunities:opportunities(conn)?})
+    // Limit the UI snapshot, never the data export.
+    workspace_with_limits(conn,500,100,200)
 }
 fn valid_source_url(raw: &str) -> Result<(),String> {
     if raw.is_empty() {return Ok(());}
@@ -115,6 +119,7 @@ fn valid_source_url(raw: &str) -> Result<(),String> {
     let url=url::Url::parse(raw).map_err(|_|"Enter a valid HTTP or HTTPS URL")?;
     if !matches!(url.scheme(),"http"|"https") {return Err("Only HTTP and HTTPS source links are allowed".into());}
     let host=url.host_str().unwrap_or("").to_ascii_lowercase();
+    let host=host.trim_end_matches('.');
     if matches!(host.as_str(), "reddit.com"|"redd.it") || host.ends_with(".reddit.com") || host.ends_with(".redd.it") {
         return Err("Reddit content requires an approved provider connector; manual import is disabled".into());
     }
@@ -177,9 +182,28 @@ pub fn save_review(conn:&Connection,id:&str,decision:&str,notes:&str,solutions:&
 
 pub fn export_json(conn:&Connection,dir:&Path)->Result<String,String>{
     fs::create_dir_all(dir).map_err(|e|e.to_string())?;
-    let payload=serde_json::to_vec_pretty(&workspace(conn)?).map_err(|e|e.to_string())?;
+    // Export the entire store rather than the bounded UI snapshot.
+    let payload=serde_json::to_vec_pretty(&workspace_with_limits(conn,-1,-1,-1)?).map_err(|e|e.to_string())?;
     let destination=dir.join(format!("discovery-export-{}.json",Uuid::new_v4()));
-    fs::write(&destination,payload).map_err(|e|e.to_string())?;
+    #[cfg(unix)] {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(dir,fs::Permissions::from_mode(0o700)).map_err(|e|e.to_string())?;
+    }
+    // Create a private file, and discard it if writing fails.
+    #[cfg(unix)]
+    let file={
+        use std::os::unix::fs::OpenOptionsExt;
+        fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&destination)
+    };
+    #[cfg(not(unix))]
+    let file=fs::OpenOptions::new().write(true).create_new(true).open(&destination);
+    use std::io::Write;
+    let mut file=file.map_err(|e|e.to_string())?;
+    if let Err(err)=file.write_all(&payload).and_then(|_|file.sync_all()) {
+        drop(file);
+        let _=fs::remove_file(&destination);
+        return Err(err.to_string());
+    }
     Ok(destination.to_string_lossy().into_owned())
 }
 
@@ -195,9 +219,39 @@ mod tests {
         assert_eq!(snapshot.runs[0].report["engine"],"keywords-v2");
     }
     #[test] fn deny_unlicensed_and_script_links(){
-        let c=db();for url in ["javascript:alert(1)","https://www.reddit.com/r/test","https://reddit.com/r/test"] {assert!(save_evidence(&c,NewEvidence{title:"test".into(),body:"manual crash".into(),source_url:url.into()}).is_err());}
+        let c=db();for url in ["javascript:alert(1)","https://www.reddit.com/r/test","https://reddit.com/r/test","https://reddit.com./r/test","https://www.reddit.com./r/test","https://redd.it./abc"] {assert!(save_evidence(&c,NewEvidence{title:"test".into(),body:"manual crash".into(),source_url:url.into()}).is_err());}
         assert!(save_evidence(&c,NewEvidence{title:"normal".into(),body:"slow workflow".into(),source_url:"https://example.com".into()}).is_ok());
     }
     #[test] fn review_needs_justification(){let mut c=db();seed_demo(&mut c).unwrap();analyze(&mut c,"Synthetic demo: ways open-source projects could help communities").unwrap();let id=workspace(&c).unwrap().opportunities[0].id.clone();assert!(save_review(&c,&id,"ready_to_build","just a hunch","").is_err());assert!(save_review(&c,&id,"ready_to_build","Tested with three maintainers.","").is_ok());}
+
+    #[test] fn export_includes_records_beyond_ui_preview_limits(){
+        let c=db();
+        for i in 0..505 {
+            c.execute("INSERT INTO evidence(id,source_kind,source_id,source_url,title,body) VALUES(?1,'manual',?2,'','title','body')",
+                params![format!("e-{i}"),format!("s-{i}")]).unwrap();
+        }
+        for i in 0..105 {
+            c.execute("INSERT INTO research_runs(id,topic,report_json) VALUES(?1,'test','{}')",
+                [format!("r-{i}")]).unwrap();
+        }
+        for i in 0..205 {
+            c.execute("INSERT INTO opportunities(id,run_id,title,score,independent_stories,evidence_refs) VALUES(?1,'r-0','theme',50,1,'[]')",
+                [format!("o-{i}")]).unwrap();
+        }
+        let preview=workspace(&c).unwrap();
+        assert_eq!((preview.evidence.len(),preview.runs.len(),preview.opportunities.len()),(500,100,200));
+        let dir=std::env::temp_dir().join(format!("discovery-export-test-{}",Uuid::new_v4()));
+        let path=export_json(&c,&dir).unwrap();
+        let archive:serde_json::Value=serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(archive["evidence"].as_array().unwrap().len(),505);
+        assert_eq!(archive["runs"].as_array().unwrap().len(),105);
+        assert_eq!(archive["opportunities"].as_array().unwrap().len(),205);
+        #[cfg(unix)] {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777,0o600);
+            assert_eq!(fs::metadata(&dir).unwrap().permissions().mode() & 0o777,0o700);
+        }
+        fs::remove_dir_all(dir).unwrap();
+    }
     #[test] fn removal_preserves_historical_counts(){let mut c=db();seed_demo(&mut c).unwrap();analyze(&mut c,"Synthetic demo: ways open-source projects could help communities").unwrap();let item=workspace(&c).unwrap().evidence[0].id.clone();remove_evidence(&c,&item).unwrap();assert_eq!(workspace(&c).unwrap().runs.len(),1);}
 }
