@@ -73,6 +73,24 @@ describe('manual opportunity review', () => {
     expect(screen.getByText(/Supporting evidence is missing/)).toBeVisible();
   });
 
+  it('rechecks evidence on reopening and removes cached deleted excerpts', async () => {
+    const { actor, fetchMock } = await openReview();
+    expect(await screen.findByText('Fictional manual workflow evidence')).toBeVisible();
+    await actor.click(screen.getByRole('button', { name: 'Hide opportunity review' }));
+    fetchMock.mockImplementationOnce(async () => Response.json({
+      title: 'Manual workflow',
+      referenced_count: 1,
+      cluster: { supporting_evidence: [{ evidence_id: 'evidence-one', available: false }] },
+      caveat: 'Evidence has expired',
+    }));
+    await actor.click(screen.getByRole('button', { name: 'Review evidence and decision' }));
+    expect(await screen.findByText(/Supporting evidence is missing, changed, or expired/)).toBeVisible();
+    expect(screen.queryByText('Fictional manual workflow evidence')).not.toBeInTheDocument();
+    const briefRequests = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes('/api/opportunities/candidate-one/brief'));
+    expect(briefRequests).toHaveLength(2);
+  });
+
   it('requires a justification before allowing a ready-to-build decision', async () => {
     const { actor } = await openReview();
     await actor.selectOptions(screen.getByLabelText('Your next decision'), 'ready_to_build');
