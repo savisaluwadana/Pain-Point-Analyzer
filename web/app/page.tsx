@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Tab } from '../lib/types';
 import { useWorkspace } from '../lib/use-workspace';
 import WorkspaceLayout from '../components/WorkspaceLayout';
@@ -13,9 +13,31 @@ import McpIntegrations from '../components/McpIntegrations';
 import Settings from '../components/Settings';
 import LoginForm from '../components/LoginForm';
 
+const VALID_TABS: Tab[] = [
+  'sources',
+  'discover',
+  'evidence',
+  'opportunities',
+  'jobs',
+  'agents',
+  'integrations',
+  'settings',
+];
+
 export default function Home() {
   const workspace = useWorkspace();
   const [tab, setTab] = useState<Tab>('sources');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const queryTab = searchParams.get('tab') as Tab | null;
+      if (queryTab && VALID_TABS.includes(queryTab)) {
+        setTab(queryTab);
+      }
+    }
+  }, []);
+
   return (
     <WorkspaceLayout
       tab={tab}

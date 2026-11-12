@@ -137,8 +137,11 @@ bash scripts/try-demo.sh
 
 The script inserts **six invented observations** (no scraping or API tokens) into an isolated demo project, runs the
 rule-based theme analysis, and prints the result. Open **http://localhost:3000**; enter your `LOCAL_LOGIN_TOKEN` to sign
-in. Go to **Evidence Library** or **Analyze & Discover**. See [the step-by-step walkthrough](docs/DEMO.md) for cleanup
+in. Go to **Evidence Library** or **Analyze & Discover**. See [the step-by-step walkthrough and screenshots](docs/DEMO.md) for cleanup
 and troubleshooting.
+
+![Synthetic demo theme report](docs/assets/screenshots/demo-theme-report.png)
+*Local research dashboard running deterministic heuristic analysis over synthetic demonstration evidence (all data shown is entirely invented).*
 
 ### First Reddit archive collection
 
