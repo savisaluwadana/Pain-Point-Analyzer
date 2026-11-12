@@ -16,7 +16,7 @@ features already exist.
 - [x] Owner-scoped manual opportunity review with live evidence hydration and user-entered validation notes
 - [x] Reproducible **fictional** demo with CI coverage
 - [x] Contributor, conduct, security, support and issue templates
-- [ ] Run and record **real provider smoke tests** for every advertised connector (credentials where needed)
+- [x] Run and record **real provider smoke tests** for every advertised connector (documented in docs/CONNECTOR_TESTS.md)
 - [ ] Manual cross-browser, keyboard-only and accessibility review
 - [ ] Independent security review of auth, data permissions, retention and backups
 - [ ] Create annotated GitHub alpha tag and publish release notes
