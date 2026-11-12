@@ -1,5 +1,5 @@
 export type Evidence = {
-  id: string; source_kind: 'manual' | 'demo'; source_id: string; source_url: string;
+  id: string; source_kind: string; source_id: string; source_url: string;
   title: string; body: string; created_at: string;
 };
 export type Cluster = { category: string; independent_stories: number; evidence_count: number;
@@ -11,3 +11,11 @@ export type Opportunity = { id: string; run_id: string; title: string; score: nu
   independent_stories: number; evidence_refs: string[]; decision: Decision;
   existing_solutions: string; validation_notes: string; created_at: string };
 export type Workspace = { evidence: Evidence[]; runs: Run[]; opportunities: Opportunity[] };
+export type ImportSummary = {
+  evidence_imported: number;
+  evidence_skipped: number;
+  runs_imported: number;
+  runs_skipped: number;
+  opportunities_imported: number;
+  opportunities_skipped: number;
+};

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { Decision, Opportunity, Workspace } from './types';
+import type { Decision, ImportSummary, Opportunity, Workspace } from './types';
 
 type View = 'overview' | 'evidence' | 'analysis' | 'opportunities' | 'settings';
 const empty: Workspace = { evidence: [], runs: [], opportunities: [] };
@@ -61,6 +61,7 @@ export default function App(){
   const [url,setUrl]=useState('');
   const [topic,setTopic]=useState('Synthetic demo: ways open-source projects could help communities');
   const [exportPath,setExportPath]=useState('');
+  const [importSummary,setImportSummary]=useState<ImportSummary|null>(null);
   const refresh=useCallback(async()=>{const state=await invoke<Workspace>('load_workspace');setSnapshot(state);},[]);
   useEffect(()=>{refresh().catch(e=>setError(String(e))).finally(()=>setLoading(false));},[refresh]);
   const mutate=useCallback(async <T,>(action:()=>Promise<T>,success:string):Promise<{ok:true;value:T}|{ok:false}>=>{
@@ -68,6 +69,25 @@ export default function App(){
   },[]);
   const latest=snapshot.runs[0];
   const freshIdeas=snapshot.opportunities.filter(o=>o.run_id===latest?.id);
+  async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const outcome = await mutate(
+        () => invoke<ImportSummary>('import_workspace', { jsonContent: text }),
+        'Import completed'
+      );
+      if (outcome.ok) {
+        setImportSummary(outcome.value);
+        await refresh();
+      }
+    } catch (err) {
+      setError('Failed to read file: ' + String(err));
+    } finally {
+      e.target.value = '';
+    }
+  }
   async function save(e:FormEvent){e.preventDefault();if(!title.trim()||!body.trim())return;
     const result=await mutate(()=>invoke<void>('save_evidence',{entry:{title,body,source_url:url}}),'Evidence saved locally');
     if(result.ok){setTitle('');setBody('');setUrl('');await refresh();}
@@ -98,7 +118,7 @@ export default function App(){
       {view==='analysis'&&<div className="stack"><section className="card"><span className="eyebrow">KEYWORDS-V2 / SHARED RUST ENGINE</span><h2>Look for recurring pain points</h2><p>Research runs scan up to 1,000 recent local evidence records. The keyword engine is deterministic and cannot infer buyer intent or understand all paraphrases.</p><TextField label="Research question" rows={3} value={topic} onChange={setTopic}/><div className="form-actions"><button className="primary" disabled={busy||!snapshot.evidence.length||!topic.trim()} onClick={analyze}>{busy?'Working…':'Run local analysis'}</button><span className="fineprint">No AI API key · No outgoing request</span></div></section>
       {latest?<section className="card"><span className="eyebrow">LATEST RESEARCH / {humanDate(latest.created_at)}</span><h2>{latest.topic}</h2><div className="analysis-metrics"><span>{latest.report.evidence_scanned} scanned</span><span>{latest.report.independent_stories} independent stories</span><span>{latest.report.clusters.length} themes</span><span>{latest.report.unclassified_items} unclassified</span></div><p className="fineprint">{latest.report.caveat}</p><div className="evidence-list">{latest.report.clusters.map(c=><div key={c.category} className="result-line"><strong>{c.category}</strong><span>{c.independent_stories} discussions</span><span>relative {Math.round(c.severity_score)}/100</span>{!c.sufficient_evidence&&<span className="warning">Sparse</span>}</div>)}</div></section>:<section className="card empty">No saved analysis. Add evidence and run your first analysis.</section>}</div>}
       {view==='opportunities'&&<section className="card"><div className="card-head"><div><span className="eyebrow">SOURCE-GROUNDED CANDIDATES</span><h2>Project opportunities</h2><p>Shown for the latest research run. Scores are relative to that run, not verified demand.</p></div></div>{freshIdeas.length?<div className="stack">{freshIdeas.map(i=><Review key={i.id} item={i} snapshot={snapshot} refresh={refresh} mutate={mutate}/>)}</div>:<div className="empty">No ideas yet. Run an evidence analysis to generate candidate themes.</div>}</section>}
-      {view==='settings'&&<div className="stack"><section className="card"><span className="eyebrow">LOCAL BY DESIGN</span><h2>Privacy and storage</h2><p>The app saves research to SQLite in your operating system's per-user application data directory. No PostgreSQL container, Node server or HTTP port is running in production desktop mode.</p><p>This first desktop alpha runs under your device user account. Lock your device and protect your OS profile to restrict access to local research. The desktop edition has no remote source collectors, auth accounts or automatic sync yet.</p><button className="primary" disabled={busy} onClick={async()=>{const result=await mutate(()=>invoke<string>('export_workspace'),'JSON snapshot written locally');if(result.ok)setExportPath(result.value);}}>Export research as JSON</button>{exportPath&&<p className="saved-path">Saved to: <span>{exportPath}</span></p>}<p className="fineprint">Exports contain your entered evidence and notes. Store them securely. JSON export is not yet an automated restore/import mechanism.</p></section><section className="card"><h2>About the desktop alpha</h2><p><strong>Rust + SQLite + React + Tauri 2</strong>. The Rust keywords-v2 analyzer is shared with the existing Docker/web implementation. Provider-specific collection, PostgreSQL migration/import, auto-update, signed releases and full MCP are future phases.</p></section></div>}
+      {view==='settings'&&<div className="stack"><section className="card"><span className="eyebrow">LOCAL BY DESIGN</span><h2>Privacy and storage</h2><p>The app saves research to SQLite in your operating system's per-user application data directory. No PostgreSQL container, Node server or HTTP port is running in production desktop mode.</p><p>This first desktop alpha runs under your device user account. Lock your device and protect your OS profile to restrict access to local research. The desktop edition has no remote source collectors, auth accounts or automatic sync yet.</p><div className="intro-actions"><button className="primary" disabled={busy} onClick={async()=>{const result=await mutate(()=>invoke<string>('export_workspace'),'JSON snapshot written locally');if(result.ok)setExportPath(result.value);}}>Export research as JSON</button><label className="secondary" style={{display:'inline-flex',alignItems:'center',cursor:busy?'not-allowed':'pointer'}}><input type="file" accept=".json,application/json" disabled={busy} onChange={handleImportFile} style={{display:'none'}}/>Import research from JSON</label></div>{exportPath&&<p className="saved-path">Saved to: <span>{exportPath}</span></p>}{importSummary&&<div className="metrics" style={{marginTop:'16px'}}><div><span>Evidence</span><strong>{importSummary.evidence_imported}</strong><small>{importSummary.evidence_skipped} skipped / duplicate</small></div><div><span>Research runs</span><strong>{importSummary.runs_imported}</strong><small>{importSummary.runs_skipped} skipped / duplicate</small></div><div><span>Opportunities</span><strong>{importSummary.opportunities_imported}</strong><small>{importSummary.opportunities_skipped} skipped / duplicate</small></div></div>}<p className="fineprint">Exports contain your entered evidence and notes. Existing local records will never be silently overwritten during import.</p></section><section className="card"><h2>About the desktop alpha</h2><p><strong>Rust + SQLite + React + Tauri 2</strong>. The Rust keywords-v2 analyzer is shared with the existing Docker/web implementation. Provider-specific collection, PostgreSQL migration/import, auto-update, signed releases and full MCP are future phases.</p></section></div>}
       </>}
       <footer>OPEN SOURCE DISCOVERY LAB <span>Local alpha · Individual, currently non-commercial research · Original software MIT-licensed</span></footer>
     </main>

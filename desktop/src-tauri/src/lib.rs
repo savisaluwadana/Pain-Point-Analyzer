@@ -35,6 +35,10 @@ fn export_workspace(app:tauri::AppHandle,state:State<'_,db::DesktopDb>)->Result<
     let path:PathBuf=app.path().app_data_dir().map_err(|e|e.to_string())?.join("exports");
     db::export_json(&*guard(&state)?,&path)
 }
+#[tauri::command]
+fn import_workspace(state:State<'_,db::DesktopDb>,json_content:String)->Result<db::ImportSummary,String>{
+    db::import_json(&mut *guard(&state)?,&json_content)
+}
 
 pub fn run(){
     tauri::Builder::default()
@@ -45,7 +49,7 @@ pub fn run(){
             app.manage(database);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![load_workspace,save_evidence,remove_evidence,seed_demo,run_analysis,save_review,export_workspace])
+        .invoke_handler(tauri::generate_handler![load_workspace,save_evidence,remove_evidence,seed_demo,run_analysis,save_review,export_workspace,import_workspace])
         .run(tauri::generate_context!())
         .expect("Unable to start local Open Source Discovery Lab");
 }
