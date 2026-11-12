@@ -11,7 +11,7 @@ It is **not** a feature-complete port of the Docker application. The desktop edi
 3. Seed six **fictional** evidence items for an offline demo (idempotent).
 4. Run the exact shared Rust `keywords-v2` grouping and relative priority scoring over **up to 1,000 latest** local items. Topic-aware lexical filtering can discard unrelated items. The result is not evidence of demand.
 5. Review historical candidate themes, view still-present local evidence, and save user-authored alternative-solution notes plus five explicit decision stages. Deleted evidence is not copied into saved reports.
-6. Delete an evidence record and export the current bounded workspace snapshot as a JSON file in the OS's app-data `exports` directory.
+6. Delete an evidence record, export the workspace snapshot as JSON, and import an existing local PostgreSQL web export or desktop JSON backup (with strict deduplication: existing records are never silently overwritten).
 
 **Storage model:** `research.sqlite3` in `AppHandle.path().app_data_dir()`; the schema uses `PRAGMA user_version=1` and refuses databases with a newer version. The local SQLite app is intentionally independent from web PostgreSQL data; it does not silently import or delete PostgreSQL records. The export includes evidence and personal notes; it is **not** a lossless SQLite backup or an implemented restore function.
 

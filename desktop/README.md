@@ -2,7 +2,7 @@
 
 This is the first **working local feature slice** of desktop issue [#44](https://github.com/savisaluwadana/Pain-Point-Analyzer/issues/44): a native Tauri 2 window, SQLite storage under the signed-in operating-system account, and the **same Rust `keywords-v2` analyzer** as the server edition via `shared/scoring.rs`.
 
-It is **not** a feature-complete port of the Docker application. The desktop edition currently does **not** implement permitted external source collectors, PostgreSQL data migration, browser OAuth, the 58 MCP workflows, native import/restore, unattended updates, cloud sync, or a signed public release. The current operating scope remains **individual, local, non-commercial research**. The desktop app must not be exposed as a web server.
+It is **not** a feature-complete port of the Docker application. The desktop edition currently does **not** implement permitted external source collectors, browser OAuth, the 58 MCP workflows, unattended updates, cloud sync, or a signed public release. The current operating scope remains **individual, local, non-commercial research**. The desktop app must not be exposed as a web server.
 
 ## Current functionality
 
@@ -11,9 +11,9 @@ It is **not** a feature-complete port of the Docker application. The desktop edi
 3. Seed six **fictional** evidence items for an offline demo (idempotent).
 4. Run the exact shared Rust `keywords-v2` grouping and relative priority scoring over **up to 1,000 latest** local items. Topic-aware lexical filtering can discard unrelated items. The result is not evidence of demand.
 5. Review historical candidate themes, view still-present local evidence, and save user-authored alternative-solution notes plus five explicit decision stages. Deleted evidence is not copied into saved reports.
-6. Delete an evidence record and export the current bounded workspace snapshot as a JSON file in the OS's app-data `exports` directory.
+6. Delete an evidence record, export the workspace snapshot as JSON, and import an existing local PostgreSQL web export or desktop JSON backup (with strict deduplication: existing records are never silently overwritten).
 
-**Storage model:** `research.sqlite3` in `AppHandle.path().app_data_dir()`; the schema uses `PRAGMA user_version=1` and refuses databases with a newer version. The local SQLite app is intentionally independent from web PostgreSQL data; it does not silently import or delete PostgreSQL records. The export includes evidence and personal notes; it is **not** a lossless SQLite backup or an implemented restore function.
+**Storage model:** `research.sqlite3` in `AppHandle.path().app_data_dir()`; the schema uses `PRAGMA user_version=1` and refuses databases with a newer version. The local SQLite app is intentionally independent from web PostgreSQL data; it supports opt-in migration via the JSON import function without silently altering existing data. The export includes evidence, runs, and personal notes.
 
 **Local security:** single operating-system user identity (OS permissions protect the files). Do not store confidential or unlicensed third-party content. No generic filesystem/shell plugins are enabled, and the app only exposes explicit local Rust IPC commands. Static evidence is rendered as escaped React text; source URLs are shown as text, not launched inside the webview.
 
