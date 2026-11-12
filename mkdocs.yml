@@ -64,6 +64,7 @@ nav:
       - Opportunity review: OPPORTUNITY_REVIEW.md
       - Analysis quality: ANALYSIS_QUALITY.md
       - Semantic analysis proposal: ANALYSIS_DESIGN.md
+      - Clustering evaluation benchmark: ANALYSIS_EVALUATION.md
       - MCP host integration: MCP.md
       - MCP tool index: MCP_TOOL_INDEX.md
   - Architecture:

@@ -6,7 +6,7 @@ This document reports the benchmark evaluation comparing the production `keyword
 
 The objective of this evaluation is to measure whether local, quantized embedding representations with average-linkage agglomerative clustering provide measurable improvements over the rule-based baseline without degrading precision, introducing hallucinated themes, or misclassifying neutral/positive chatter as user pain points.
 
-The evaluation harness is implemented in [`scripts/benchmark_analysis.py`](../scripts/benchmark_analysis.py) and operates on the versioned, synthetic evaluation fixture in [`examples/clustering_evaluation_fixture.json`](../examples/clustering_evaluation_fixture.json).
+The evaluation harness is implemented in [`scripts/benchmark_analysis.py`](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/scripts/benchmark_analysis.py) and operates on the versioned, synthetic evaluation fixture in [`examples/clustering_evaluation_fixture.json`](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/examples/clustering_evaluation_fixture.json).
 
 ## 2. Evaluation Fixture & Methodology
 
