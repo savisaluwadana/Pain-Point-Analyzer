@@ -243,6 +243,9 @@ quotes per qualifying cluster; old/deleted evidence cannot guarantee that.
 
 ## Evaluation and release gates (Step C)
 
+> [!NOTE]
+> The initial benchmark evaluation harness and synthetic dataset for this step have been implemented. See the complete evaluation report in [ANALYSIS_EVALUATION.md](ANALYSIS_EVALUATION.md), the 60/40 synthetic fixture in [examples/clustering_evaluation_fixture.json](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/examples/clustering_evaluation_fixture.json), and the benchmark harness in [scripts/benchmark_analysis.py](https://github.com/savisaluwadana/Pain-Point-Analyzer/blob/main/scripts/benchmark_analysis.py).
+
 Create approximately 100 original fictional observations in `examples/eval/`, with an explicit license and provenance
 statement: 80 observations across ten themes, plus 20 neutral/noise observations. Include paraphrases, lexical traps,
 negations, mixed sentiment, long inputs, same-thread replies and cross-source copied text. Annotate evidence and

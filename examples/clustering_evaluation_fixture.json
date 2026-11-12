@@ -1,0 +1,269 @@
+{
+  "notice": "SYNTHETIC EVALUATION FIXTURE. Licensed under MIT. All observations are invented for scientific evaluation of complaint classification and clustering algorithms. No real user posts, names or confidential data are included.",
+  "metadata": {
+    "version": "1.0",
+    "description": "60/40 development and held-out benchmark fixture covering paraphrases, negation, neutral mentions, and cross-source duplicates.",
+    "target_metrics": {
+      "cluster_purity_min": 0.80,
+      "pairwise_f1_min": 0.70,
+      "coverage_min": 0.70,
+      "noise_fpr_max": 0.10
+    }
+  },
+  "development_split": [
+    {
+      "id": "dev-01",
+      "text": "Every Monday our maintainer manually copies release notes into a spreadsheet by hand.",
+      "true_category": "Manual workflow",
+      "is_pain": true,
+      "story_group": "story-01"
+    },
+    {
+      "id": "dev-02",
+      "text": "Volunteers waste hours on repetitive manual data entry between systems.",
+      "true_category": "Manual workflow",
+      "is_pain": true,
+      "story_group": "story-02"
+    },
+    {
+      "id": "dev-03",
+      "text": "The calendar connector cannot connect to Google Calendar feeds and sync fails.",
+      "true_category": "Integration gaps",
+      "is_pain": true,
+      "story_group": "story-03"
+    },
+    {
+      "id": "dev-04",
+      "text": "Missing integration with our existing webhook service forces awkward workarounds.",
+      "true_category": "Integration gaps",
+      "is_pain": true,
+      "story_group": "story-04"
+    },
+    {
+      "id": "dev-05",
+      "text": "Search queries are extraordinarily slow and frequently time out under load.",
+      "true_category": "Performance",
+      "is_pain": true,
+      "story_group": "story-05"
+    },
+    {
+      "id": "dev-06",
+      "text": "High latency on dashboard loading makes daily triage painful.",
+      "true_category": "Performance",
+      "is_pain": true,
+      "story_group": "story-06"
+    },
+    {
+      "id": "dev-07",
+      "text": "The daemon crashes unexpectedly and keeps failing after restart.",
+      "true_category": "Reliability",
+      "is_pain": true,
+      "story_group": "story-07"
+    },
+    {
+      "id": "dev-08",
+      "text": "Encountering intermittent fatal errors during background synchronization.",
+      "true_category": "Reliability",
+      "is_pain": true,
+      "story_group": "story-08"
+    },
+    {
+      "id": "dev-09",
+      "text": "Setup has too many steps and the documentation is confusing for newcomers.",
+      "true_category": "Workflow complexity",
+      "is_pain": true,
+      "story_group": "story-09"
+    },
+    {
+      "id": "dev-10",
+      "text": "The onboarding wizard is cumbersome and complicated to navigate.",
+      "true_category": "Workflow complexity",
+      "is_pain": true,
+      "story_group": "story-10"
+    },
+    {
+      "id": "dev-11",
+      "text": "I really wish there was support for keyboard shortcuts and arrow navigation.",
+      "true_category": "Missing functionality",
+      "is_pain": true,
+      "story_group": "story-11"
+    },
+    {
+      "id": "dev-12",
+      "text": "Missing feature: no way to export chart visualisations directly to SVG.",
+      "true_category": "Missing functionality",
+      "is_pain": true,
+      "story_group": "story-12"
+    },
+    {
+      "id": "dev-13",
+      "text": "The hosted tier is too costly and expensive for bootstrapped non-profits.",
+      "true_category": "Pricing and cost",
+      "is_pain": true,
+      "story_group": "story-13"
+    },
+    {
+      "id": "dev-14",
+      "text": "Hidden fees make the recurring subscription price unreasonable.",
+      "true_category": "Pricing and cost",
+      "is_pain": true,
+      "story_group": "story-14"
+    },
+    {
+      "id": "dev-15",
+      "text": "Customer support ignores critical tickets and leaves questions unanswered for weeks.",
+      "true_category": "Customer support",
+      "is_pain": true,
+      "story_group": "story-15"
+    },
+    {
+      "id": "dev-16",
+      "text": "The documentation is well-organized and setup is completely painless.",
+      "true_category": "None",
+      "is_pain": false,
+      "story_group": "neutral-01"
+    },
+    {
+      "id": "dev-17",
+      "text": "Our database is not slow and never crashes during heavy ingestion.",
+      "true_category": "None",
+      "is_pain": false,
+      "story_group": "neutral-02"
+    },
+    {
+      "id": "dev-18",
+      "text": "Reviewing standard pricing tiers and feature comparisons on the home page.",
+      "true_category": "None",
+      "is_pain": false,
+      "story_group": "neutral-03"
+    }
+  ],
+  "held_out_split": [
+    {
+      "id": "held-01",
+      "text": "Our triage team spends 4 hours every Tuesday re-typing issue data into markdown tables by hand.",
+      "true_category": "Manual workflow",
+      "is_pain": true,
+      "story_group": "story-held-01"
+    },
+    {
+      "id": "held-02",
+      "text": "Repetitive copy pasting of release metadata between Git and Slack wastes developer focus.",
+      "true_category": "Manual workflow",
+      "is_pain": true,
+      "story_group": "story-held-02"
+    },
+    {
+      "id": "held-03",
+      "text": "The application does not connect to custom LDAP authentication providers.",
+      "true_category": "Integration gaps",
+      "is_pain": true,
+      "story_group": "story-held-03"
+    },
+    {
+      "id": "held-04",
+      "text": "API sync missing: we cannot bridge customer tickets directly to GitHub issues.",
+      "true_category": "Integration gaps",
+      "is_pain": true,
+      "story_group": "story-held-04"
+    },
+    {
+      "id": "held-05",
+      "text": "Full-text search takes forever to return and response latency spikes drastically.",
+      "true_category": "Performance",
+      "is_pain": true,
+      "story_group": "story-held-05"
+    },
+    {
+      "id": "held-06",
+      "text": "The UI is lagging severely when rendering tables larger than 100 rows.",
+      "true_category": "Performance",
+      "is_pain": true,
+      "story_group": "story-held-06"
+    },
+    {
+      "id": "held-07",
+      "text": "The worker service keeps failing under load and produces repeated crash backtraces.",
+      "true_category": "Reliability",
+      "is_pain": true,
+      "story_group": "story-held-07"
+    },
+    {
+      "id": "held-08",
+      "text": "Major outage yesterday due to broken schema migration scripts.",
+      "true_category": "Reliability",
+      "is_pain": true,
+      "story_group": "story-held-08"
+    },
+    {
+      "id": "held-09",
+      "text": "The installation pipeline is complicated and has far too many steps for beginners.",
+      "true_category": "Workflow complexity",
+      "is_pain": true,
+      "story_group": "story-held-09"
+    },
+    {
+      "id": "held-10",
+      "text": "Configuring reverse proxy SSL certificates is confusing and cumbersome.",
+      "true_category": "Workflow complexity",
+      "is_pain": true,
+      "story_group": "story-held-10"
+    },
+    {
+      "id": "held-11",
+      "text": "We desperately wish it had a dark mode toggle and screen-reader accessibility options.",
+      "true_category": "Missing functionality",
+      "is_pain": true,
+      "story_group": "story-held-11"
+    },
+    {
+      "id": "held-12",
+      "text": "Missing feature: no native way to filter logs by HTTP status code.",
+      "true_category": "Missing functionality",
+      "is_pain": true,
+      "story_group": "story-held-12"
+    },
+    {
+      "id": "held-13",
+      "text": "Enterprise licensing is exorbitantly overpriced and we cannot afford the minimum seats.",
+      "true_category": "Pricing and cost",
+      "is_pain": true,
+      "story_group": "story-held-13"
+    },
+    {
+      "id": "held-14",
+      "text": "Billing surprise with hidden fees added for bandwidth consumption.",
+      "true_category": "Pricing and cost",
+      "is_pain": true,
+      "story_group": "story-held-14"
+    },
+    {
+      "id": "held-15",
+      "text": "Support gives unhelpful support responses and closes active bug reports without review.",
+      "true_category": "Customer support",
+      "is_pain": true,
+      "story_group": "story-held-15"
+    },
+    {
+      "id": "held-16",
+      "text": "The new update is not broken and doesn't crash on arm64 macOS machines.",
+      "true_category": "None",
+      "is_pain": false,
+      "story_group": "neutral-held-01"
+    },
+    {
+      "id": "held-17",
+      "text": "Announcing our new community roadmap and quarterly contributor goals.",
+      "true_category": "None",
+      "is_pain": false,
+      "story_group": "neutral-held-02"
+    },
+    {
+      "id": "held-18",
+      "text": "Fast responses, clean code structure, and straightforward setup without complicated steps.",
+      "true_category": "None",
+      "is_pain": false,
+      "story_group": "neutral-held-03"
+    }
+  ]
+}
