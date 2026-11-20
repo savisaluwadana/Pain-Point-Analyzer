@@ -8,13 +8,30 @@ type Props = {
   setTab: (tab: Tab) => void;
   user: User | null;
   notice: string;
+  loadError: string;
+  loading: boolean;
+  busy: boolean;
+  onRefresh: () => Promise<void>;
   counts: Workspace['counts'];
   onSignOut: () => Promise<void>;
   login: ReactNode;
   children: ReactNode;
 };
 
-export default function WorkspaceLayout({ tab, setTab, user, notice, counts, onSignOut, login, children }: Props) {
+export default function WorkspaceLayout({
+  tab,
+  setTab,
+  user,
+  notice,
+  loadError,
+  loading,
+  busy,
+  onRefresh,
+  counts,
+  onSignOut,
+  login,
+  children,
+}: Props) {
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -39,8 +56,13 @@ export default function WorkspaceLayout({ tab, setTab, user, notice, counts, onS
               ['settings', '⚙', 'Privacy & Settings'],
             ] as const
           ).map(([key, icon, label]) => (
-            <button key={key} onClick={() => setTab(key)} className={'side-link ' + (tab === key ? 'active' : '')}>
-              <span>{icon}</span>
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              aria-current={tab === key ? 'page' : undefined}
+              className={'side-link ' + (tab === key ? 'active' : '')}
+            >
+              <span aria-hidden="true">{icon}</span>
               {label}
             </button>
           ))}
@@ -65,7 +87,9 @@ export default function WorkspaceLayout({ tab, setTab, user, notice, counts, onS
                     Reconnect Reddit
                   </a>
                 )}
-                <button onClick={() => void onSignOut()}>Sign out</button>
+                <button disabled={busy} onClick={() => void onSignOut()}>
+                  Sign out
+                </button>
               </>
             ) : (
               <a className="connect" href="/api/auth/reddit/start">
@@ -92,26 +116,41 @@ export default function WorkspaceLayout({ tab, setTab, user, notice, counts, onS
             {notice}
           </div>
         )}
+        {loadError && (
+          <div className="notice" role="alert">
+            {loadError}{' '}
+            <button className="tiny" disabled={busy} onClick={() => void onRefresh()}>
+              Retry loading
+            </button>
+          </div>
+        )}
+        {loading && (
+          <p role="status" className="loading-state">
+            Loading workspace…
+          </p>
+        )}
         {login}
         {user && !user.reddit_connected && !user.local_account && (
           <div className="notice">Reddit is disconnected. Your existing non-Reddit research remains available.</div>
         )}
-        <section className="stats">
-          {[
-            ['Evidence displayed', counts.items.toString(), 'Latest 200 records loaded'],
-            ['Research reviews', counts.runs.toString(), 'Latest reports loaded'],
-            ['Open-source ideas', counts.opportunities.toString(), 'Require community validation'],
-            ['Reddit jobs', counts.jobs.toString(), 'Queue and history'],
-          ].map(([label, value, caption]) => (
-            <div className="stat" key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-              <small>{caption}</small>
-            </div>
-          ))}
-        </section>
+        {user && (
+          <section className="stats" aria-label="Research summary">
+            {[
+              ['Evidence displayed', counts.items.toString(), 'Latest 200 records loaded'],
+              ['Research reviews', counts.runs.toString(), 'Latest reports loaded'],
+              ['Open-source ideas', counts.opportunities.toString(), 'Require community validation'],
+              ['Reddit jobs', counts.jobs.toString(), 'Queue and history'],
+            ].map(([label, value, caption]) => (
+              <div className="stat" key={label}>
+                <span>{label}</span>
+                <strong>{value}</strong>
+                <small>{caption}</small>
+              </div>
+            ))}
+          </section>
+        )}
 
-        {children}
+        {user && <div aria-busy={loading}>{children}</div>}
         <footer>
           OPEN SOURCE DISCOVERY LAB <span>© 2026 · Local, currently non-commercial community research</span>
         </footer>

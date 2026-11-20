@@ -1,6 +1,5 @@
 'use client';
-import { useState } from 'react';
-import { api } from '../lib/api';
+import { api, safeSourceUrl } from '../lib/api';
 import type { Workspace } from '../lib/use-workspace';
 import Projects from './Projects';
 type Props = Workspace['context'] & Workspace['scope'] & Workspace['analysis'];
@@ -19,11 +18,12 @@ export default function Analyze({
   setThreadId,
   topic,
   setTopic,
+  analysisLimit,
+  setAnalysisLimit,
   items,
   latest,
   projectEditor,
 }: Props) {
-  const [analysisLimit, setAnalysisLimit] = useState(1000);
   return (
     <div className="two-col">
       <section className="panel">
@@ -41,7 +41,7 @@ export default function Analyze({
           </p>
         )}
         <label htmlFor="project">Research project</label>
-        <select id="project" value={selected} onChange={(e) => setSelected(e.target.value)}>
+        <select id="project" value={selected} disabled={busy} onChange={(e) => setSelected(e.target.value)}>
           <option value="">All evidence / no project</option>
           {projects.map((p) => (
             <option value={p.id} key={p.id}>
@@ -61,7 +61,7 @@ export default function Analyze({
         </div>
         <button
           className="primary"
-          disabled={!user?.reddit_connected || busy}
+          disabled={!user?.reddit_connected || busy || !subreddit.trim()}
           onClick={() =>
             void act(
               () =>
@@ -77,7 +77,7 @@ export default function Analyze({
         </button>
         <button
           className="secondary"
-          disabled={!user?.reddit_connected || busy}
+          disabled={!user?.reddit_connected || busy || !subreddit.trim()}
           onClick={() =>
             void act(
               () => api('/research/jobs', { method: 'POST', body: JSON.stringify({ subreddit, project_id }) }),
@@ -124,7 +124,7 @@ export default function Analyze({
           </p>
         </div>
         <label htmlFor="topic">Research question</label>
-        <textarea id="topic" rows={3} value={topic} onChange={(e) => setTopic(e.target.value)} />
+        <textarea id="topic" rows={3} maxLength={500} value={topic} onChange={(e) => setTopic(e.target.value)} />
         <label htmlFor="analysisLimit">Analysis budget</label>
         <select id="analysisLimit" value={analysisLimit} onChange={(e) => setAnalysisLimit(Number(e.target.value))}>
           <option value={1000}>Up to 1,000 records</option>
@@ -133,7 +133,9 @@ export default function Analyze({
         </select>
         <button
           className="primary"
-          disabled={!user || busy || items.length === 0}
+          disabled={
+            !user || busy || items.length === 0 || !topic.trim() || new TextEncoder().encode(topic).length > 500
+          }
           onClick={() =>
             void act(
               () =>
@@ -203,7 +205,7 @@ export default function Analyze({
                     </span>
                   </div>
                   <div className="bar">
-                    <div style={{ width: c.severity_score + '%' }} />
+                    <div style={{ width: Math.max(0, Math.min(100, c.severity_score)) + '%' }} />
                   </div>
                   <small>
                     {c.independent_stories} independent stories · {c.evidence_count} signals
@@ -221,8 +223,8 @@ export default function Analyze({
                       {e.available ? (
                         <blockquote>
                           <p>{e.excerpt}</p>
-                          {e.source_url && /^https?:\/\//i.test(e.source_url) && (
-                            <a href={e.source_url} target="_blank" rel="noopener noreferrer">
+                          {safeSourceUrl(e.source_url) && (
+                            <a href={safeSourceUrl(e.source_url)} target="_blank" rel="noopener noreferrer">
                               Read original source
                             </a>
                           )}

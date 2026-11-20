@@ -29,6 +29,12 @@ export default function Sources({
   archivePost,
   setArchivePost,
 }: Props) {
+  const requiresTarget = chosenSource && ['video', 'forum', 'subreddit'].includes(chosenSource.mode);
+  const requiresQuery = chosenSource && !['video', 'subreddit'].includes(chosenSource.mode);
+  const valid =
+    (!requiresTarget || !!sourceTarget.trim()) &&
+    (!requiresQuery || sourceQuery.trim().length >= 2) &&
+    (source !== 'arctic-shift' || (Number.isInteger(archiveDays) && archiveDays >= 1 && archiveDays <= 365));
   return (
     <div className="two-col">
       <section className="panel">
@@ -51,6 +57,7 @@ export default function Sources({
         <select
           id="sourceSelect"
           value={source}
+          disabled={busy || !catalog.length}
           onChange={(e) => {
             setSource(e.target.value);
             setSourceResult('');
@@ -60,6 +67,7 @@ export default function Sources({
             setSourceTarget('');
           }}
         >
+          {!catalog.length && <option value="github">No source catalog loaded</option>}
           {catalog.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -79,6 +87,7 @@ export default function Sources({
         </label>
         <input
           id="sourceQuery"
+          maxLength={160}
           value={sourceQuery}
           onChange={(e) => setSourceQuery(e.target.value)}
           placeholder={chosenSource?.mode === 'tag' ? 'open-source' : 'missing feature'}
@@ -94,6 +103,7 @@ export default function Sources({
             </label>
             <input
               id="sourceTarget"
+              maxLength={220}
               value={sourceTarget}
               onChange={(e) => setSourceTarget(e.target.value)}
               placeholder={
@@ -137,7 +147,7 @@ export default function Sources({
           </>
         )}
         <label htmlFor="sourceProject">Research project</label>
-        <select id="sourceProject" value={selected} onChange={(e) => setSelected(e.target.value)}>
+        <select id="sourceProject" value={selected} disabled={busy} onChange={(e) => setSelected(e.target.value)}>
           <option value="">Unassigned evidence</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
@@ -147,7 +157,7 @@ export default function Sources({
         </select>
         <button
           className="primary"
-          disabled={!user || busy || !chosenSource || !chosenSource.ready}
+          disabled={!user || busy || !chosenSource || !chosenSource.ready || !valid}
           onClick={() => {
             setSourceResult('');
             void act(async () => {
@@ -157,8 +167,8 @@ export default function Sources({
                   method: 'POST',
                   body: JSON.stringify({
                     source,
-                    query: sourceQuery,
-                    target: sourceTarget,
+                    query: sourceQuery.trim(),
+                    target: sourceTarget.trim(),
                     project_id,
                     limit: source === 'arctic-shift' ? 10 : 15,
                     ...(source === 'arctic-shift'
@@ -176,7 +186,12 @@ export default function Sources({
                 result.saved +
                   ' new or updated evidence records saved' +
                   (result.fetched !== undefined
-                    ? ' from ' + result.fetched + ' fetched / ' + result.eligible + ' eligible. ' + result.note
+                    ? ' from ' +
+                      result.fetched +
+                      ' fetched' +
+                      (result.eligible !== undefined ? ' / ' + result.eligible + ' eligible' : '') +
+                      '. ' +
+                      (result.note || '')
                     : ''),
               );
             }, 'Source collection completed');
@@ -184,6 +199,7 @@ export default function Sources({
         >
           {busy ? 'Collecting…' : 'Collect source evidence →'}
         </button>
+        {!valid && <p className="disclaimer">Enter the required search or target and a valid look-back period.</p>}
         {sourceResult && (
           <p className="disclaimer" role="status">
             {sourceResult}
@@ -196,6 +212,9 @@ export default function Sources({
           <h2>Supported sources</h2>
         </div>
         <div className="list">
+          {!catalog.length && (
+            <p className="empty">Source availability could not be loaded. Retry loading the workspace.</p>
+          )}
           {catalog.map((s) => (
             <div key={s.id} className="list-item">
               <b>{s.name}</b>

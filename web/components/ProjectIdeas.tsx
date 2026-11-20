@@ -1,10 +1,11 @@
 'use client';
 import type { Workspace } from '../lib/use-workspace';
 import OpportunityReview from './OpportunityReview';
+import ProjectScope from './ProjectScope';
 
-type Props = Workspace['ideas'];
+type Props = Workspace['ideas'] & Workspace['scope'];
 
-export default function ProjectIdeas({ opportunities, busy, act }: Props) {
+export default function ProjectIdeas({ opportunities, busy, act, projects, selected, setSelected }: Props) {
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -15,6 +16,7 @@ export default function ProjectIdeas({ opportunities, busy, act }: Props) {
           priorities only within the same research run.
         </p>
       </div>
+      <ProjectScope {...{ projects, selected, setSelected, busy }} />
       {opportunities.length ? (
         <div className="list">
           {opportunities.map((o) => (
