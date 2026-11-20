@@ -1,6 +1,6 @@
 :root {
   --ink: #142722;
-  --sub: #708078;
+  --sub: #53675c;
   --line: #e3e8e1;
   --bg: #f7f8f5;
   --surface: #fff;
@@ -54,6 +54,7 @@ a:hover {
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow-y: auto;
 }
 .brand {
   font-size: 17px;
@@ -62,9 +63,10 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  white-space: nowrap;
+  min-width: 0;
 }
 .brand-symbol {
+  flex-shrink: 0;
   display: grid;
   place-items: center;
   width: 32px;
@@ -144,7 +146,10 @@ a:hover {
   padding: 0 5vw;
 }
 .topbar {
-  height: 75px;
+  min-height: 75px;
+  padding: 12px 0;
+  gap: 12px;
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -165,6 +170,9 @@ a:hover {
   align-items: center;
   font-size: 12px;
   color: var(--ink);
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .identity button {
   border: 0;
@@ -172,6 +180,7 @@ a:hover {
   color: var(--sub);
 }
 .avatar {
+  flex-shrink: 0;
   border-radius: 50%;
   background: #cce5d3;
   width: 31px;
@@ -189,7 +198,7 @@ a:hover {
 .intro {
   padding: 52px 0 43px;
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 22px;
 }
@@ -255,7 +264,7 @@ a:hover {
 }
 .stat small {
   font-size: 11px;
-  color: #92a198;
+  color: #657569;
   margin-top: auto;
 }
 .two-col {
@@ -270,6 +279,7 @@ a:hover {
   padding: 28px;
   min-width: 0;
   margin-bottom: 20px;
+  overflow-wrap: anywhere;
 }
 .span-all {
   grid-column: 1/-1;
@@ -305,6 +315,7 @@ a:hover {
   padding: 12px 13px;
   outline: none;
   color: var(--ink);
+  min-width: 0;
 }
 .panel input:focus,
 .panel select:focus,
@@ -400,12 +411,14 @@ a:hover {
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 20px;
+  min-width: 0;
 }
 .cluster-top {
   display: flex;
   justify-content: space-between;
   gap: 10px;
   font-size: 13px;
+  flex-wrap: wrap;
 }
 .cluster-top span {
   color: #236448;
@@ -429,7 +442,7 @@ a:hover {
 }
 .disclaimer {
   font-size: 12px;
-  color: #819086;
+  color: #53675c;
   margin-top: 24px;
   line-height: 1.6;
 }
@@ -546,14 +559,15 @@ a:hover {
   }
   .side-link {
     white-space: nowrap;
-    font-size: 11px;
-    padding: 9px;
+    font-size: 12px;
+    padding: 12px;
   }
   .main {
     padding: 0 16px;
   }
   .topbar {
-    height: 60px;
+    min-height: 60px;
+    align-items: flex-start;
   }
   .intro {
     padding: 27px 0;
@@ -580,5 +594,85 @@ a:hover {
   }
   .span-all {
     grid-column: auto;
+  }
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #338364;
+  outline-offset: 3px;
+}
+.sidebar button:focus-visible {
+  outline-color: #bdff8a;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+.two-col > .panel {
+  margin-bottom: 0;
+}
+.panel textarea {
+  resize: vertical;
+}
+.command {
+  max-width: 100%;
+  overflow: auto;
+  padding: 12px;
+  background: #eff6ed;
+  border-radius: 8px;
+}
+.evidence-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+.scope-picker select {
+  display: block;
+  margin-top: 8px;
+}
+.loading-state {
+  color: var(--sub);
+  padding: 10px 0;
+}
+.notice .tiny {
+  margin: 6px 0 0;
+}
+.panel blockquote {
+  margin: 12px 0;
+  padding-left: 12px;
+  border-left: 3px solid #b9d1c5;
+}
+@media (max-width: 900px) {
+  .two-col,
+  .cluster-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .main footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .score {
+    float: none;
+    display: inline-block;
+  }
+  .stat {
+    padding: 12px;
+    min-height: 112px;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .intro h1 {
+    font-size: 34px;
+  }
+  .identity {
+    width: 100%;
   }
 }

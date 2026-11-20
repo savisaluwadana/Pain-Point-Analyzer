@@ -10,6 +10,7 @@ async function openWorkspace(options?: Parameters<typeof mockWorkspace>[0]) {
   await screen.findByRole('button', { name: 'Sign out' });
   // Wait for data loading as well as authentication.
   await screen.findByRole('option', { name: project.name });
+  await waitFor(() => expect(screen.queryByText('Loading workspace…')).not.toBeInTheDocument());
   return { fetchMock, actor: userEvent.setup() };
 }
 
@@ -22,7 +23,7 @@ describe('local login', () => {
     const fetchMock = mockWorkspace({ signedIn: false });
     const actor = userEvent.setup();
     render(<Home />);
-    const token = screen.getByLabelText('Local access token');
+    const token = await screen.findByLabelText('Local access token');
     const login = screen.getByRole('button', { name: /Sign in locally/ });
     expect(token).toHaveAttribute('type', 'password');
     expect(token).toHaveAttribute('autocomplete', 'off');
@@ -170,6 +171,52 @@ describe('analysis and navigation', () => {
     await navigate(actor, /Analyze & Discover/);
     expect(screen.getByRole('button', { name: /Run evidence analysis/ })).toBeDisabled();
     expect(screen.getByRole('heading', { name: 'No research report yet' })).toBeVisible();
+  });
+
+  it('queries project-scoped evidence and exposes the same project picker in evidence and ideas', async () => {
+    const { actor, fetchMock } = await openWorkspace();
+    await navigate(actor, /Evidence Library/);
+    await actor.selectOptions(screen.getByLabelText('Research project'), project.id);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/evidence?limit=200&project_id=project-one', expect.anything()),
+    );
+    await waitFor(() => expect(screen.getByLabelText('Research project')).not.toBeDisabled());
+    await navigate(actor, /Project Ideas/);
+    expect(screen.getByLabelText('Research project')).toHaveValue(project.id);
+    expect(window.location.search).toBe('?tab=opportunities');
+  });
+
+  it('opens deep-linked tabs and clears one-time keys and private drafts on logout', async () => {
+    window.history.replaceState(null, '', '/?tab=integrations');
+    mockWorkspace();
+    render(<Home />);
+    const actor = userEvent.setup();
+    const generate = await screen.findByRole('button', { name: 'Generate MCP API key' });
+    await waitFor(() => expect(generate).toBeEnabled());
+    await actor.click(generate);
+    expect(await screen.findByLabelText('New API key')).toHaveValue('pil_fictional_test_key');
+    await navigate(actor, /Evidence Library/);
+    await actor.type(screen.getByLabelText('Evidence title'), 'Private draft');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sign out' })).toBeEnabled());
+    await actor.click(screen.getByRole('button', { name: 'Sign out' }));
+    await actor.type(await screen.findByLabelText('Local access token'), 'a'.repeat(64));
+    await actor.click(screen.getByRole('button', { name: /Sign in locally/ }));
+    expect(await screen.findByLabelText('Evidence title')).toHaveValue('');
+    await navigate(actor, /MCP Integrations/);
+    expect(screen.queryByLabelText('New API key')).not.toBeInTheDocument();
+  });
+
+  it('rejects empty observations and unsafe source URLs before saving', async () => {
+    const { actor } = await openWorkspace();
+    await navigate(actor, /Evidence Library/);
+    const save = screen.getByRole('button', { name: /Save evidence/ });
+    await actor.type(screen.getByLabelText('Evidence title'), 'Fictional title');
+    expect(save).toBeDisabled();
+    await actor.type(screen.getByLabelText('What did the source say?'), 'Fictional evidence');
+    await actor.type(screen.getByLabelText('Source URL (optional)'), 'javascript:alert(1)');
+    expect(save).toBeDisabled();
+    await actor.clear(screen.getByLabelText('Source URL (optional)'));
+    expect(save).toBeEnabled();
   });
 
   it('preserves drafts and the selected project across tab switches', async () => {

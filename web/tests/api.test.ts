@@ -19,4 +19,11 @@ describe('API error handling', () => {
     expect(await loadList(api<unknown[]>('/evidence'), apply)).toBe(false);
     expect(apply).toHaveBeenCalledWith([]);
   });
+  it('rejects successful HTML responses and malformed list payloads', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>proxy error</html>')));
+    await expect(api('/me')).rejects.toThrow('Server returned an invalid response');
+    const apply = vi.fn();
+    expect(await loadList(Promise.resolve({} as unknown[]), apply)).toBe(false);
+    expect(apply).toHaveBeenCalledWith([]);
+  });
 });

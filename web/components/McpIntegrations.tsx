@@ -1,10 +1,12 @@
 'use client';
+import { useState } from 'react';
 import { api } from '../lib/api';
 import type { Workspace } from '../lib/use-workspace';
 
 type Props = Workspace['context'] & Workspace['integrations'];
 
 export default function McpIntegrations({ user, busy, act, keys, keyLabel, setKeyLabel, newKey, setNewKey }: Props) {
+  const [copyStatus, setCopyStatus] = useState('');
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -32,6 +34,7 @@ export default function McpIntegrations({ user, busy, act, keys, keyLabel, setKe
               body: JSON.stringify({ label: keyLabel }),
             });
             setNewKey(result.api_key);
+            setCopyStatus('');
           }, 'API key created. Copy and store it securely now.')
         }
       >
@@ -43,14 +46,35 @@ export default function McpIntegrations({ user, busy, act, keys, keyLabel, setKe
           <p>Copy this key into your MCP host configuration. It will not be shown again.</p>
           <div className="row">
             <input aria-label="New API key" type="text" value={newKey} readOnly />
-            <button className="tiny" onClick={() => void navigator.clipboard.writeText(newKey)}>
+            <button
+              className="tiny"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(newKey);
+                  setCopyStatus('Copied to clipboard.');
+                } catch {
+                  setCopyStatus('Clipboard unavailable. Select and copy the key manually.');
+                }
+              }}
+            >
               Copy
             </button>
           </div>
+          {copyStatus && <p role="status">{copyStatus}</p>}
+          <button
+            className="secondary"
+            onClick={() => {
+              setNewKey('');
+              setCopyStatus('');
+            }}
+          >
+            Hide key
+          </button>
         </div>
       )}
       <div className="subpanel">
         <span className="eyebrow">ACTIVE API KEYS</span>
+        {!keys.length && <p className="empty">No active keys.</p>}
         {keys.map((k) => (
           <div className="list-item job" key={k.id}>
             <b>{k.label}</b>

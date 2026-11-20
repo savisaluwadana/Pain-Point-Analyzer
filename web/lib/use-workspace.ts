@@ -1,6 +1,6 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
-import { api, loadList } from './api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, ApiError, loadList } from './api';
 import type {
   User,
   Project,
@@ -24,7 +24,10 @@ export function useWorkspace() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [selected, setSelected] = useState('');
+  const [selected, setSelectedState] = useState('');
+  const selectedRef = useRef('');
+  const generation = useRef(0);
+  const actionPending = useRef(false);
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [hostRuns, setHostRuns] = useState<HostRun[]>([]);
   const [hostWorkspaces, setHostWorkspaces] = useState<HostWorkspace[]>([]);
@@ -50,53 +53,119 @@ export function useWorkspace() {
   const [projectName, setProjectName] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [analysisLimit, setAnalysisLimit] = useState(1000);
+  const setSelected = useCallback((value: string) => {
+    if (value === selectedRef.current) return;
+    selectedRef.current = value;
+    generation.current += 1;
+    setSelectedState(value);
+    setItems([]);
+    setOpportunities([]);
+    setLoading(true);
+  }, []);
+
+  const clearSession = useCallback(() => {
+    setUser(null);
+    setProjects([]);
+    setItems([]);
+    setRuns([]);
+    setJobs([]);
+    setOpportunities([]);
+    setKeys([]);
+    setHostRuns([]);
+    setHostWorkspaces([]);
+    setHostJobs([]);
+    setNewKey('');
+    setLocalToken('');
+    setManualTitle('');
+    setManualBody('');
+    setManualUrl('');
+    setProjectName('');
+    setSourceResult('');
+    setSourceQuery('feature request');
+    setSourceTarget('');
+    setSource('github');
+    setArchivePost('');
+    setArchiveRanking('top');
+    setArchiveDays(30);
+    setAnalysisLimit(1000);
+    setSubreddit('opensource');
+    setThreadId('');
+    setTopic('Recurring community needs that open-source projects could address');
+    setKeyLabel('My MCP client');
+    selectedRef.current = '';
+    setSelectedState('');
+  }, []);
   const load = useCallback(async () => {
+    const current = ++generation.current;
+    const scope = selectedRef.current;
+    const active = () => generation.current === current;
+    const apply =
+      <T>(setter: (value: T) => void) =>
+      (value: T) => {
+        if (active()) setter(value);
+      };
+    setLoading(true);
+    setLoadError('');
+    const catalogRequest = api<SourceCatalog>('/sources')
+      .then((v) => {
+        if (!Array.isArray(v?.sources)) throw new Error('Invalid source catalog');
+        apply(setCatalog)(v.sources);
+        return true;
+      })
+      .catch(() => {
+        apply(setCatalog)([]);
+        return false;
+      });
     try {
       const me = await api<User>('/me');
+      if (!me?.id || typeof me.reddit_username !== 'string') throw new Error('Invalid session response');
+      if (!active()) return;
       setUser(me);
     } catch (e) {
-      setUser(null);
-      setProjects([]);
-      setItems([]);
-      setRuns([]);
-      setJobs([]);
-      setOpportunities([]);
-      setKeys([]);
-      setHostRuns([]);
-      setHostWorkspaces([]);
-      setHostJobs([]);
-      setNotice(e instanceof Error ? e.message : 'Unable to authenticate');
+      if (!active()) return;
+      if (e instanceof ApiError && e.status === 401) clearSession();
+      setLoadError(e instanceof Error ? e.message : 'Unable to authenticate');
+      setLoading(false);
       return;
     }
     // Keep the authenticated session visible when a separate research endpoint is unavailable.
     const results = await Promise.all([
-      loadList(api<Project[]>('/projects'), setProjects),
-      loadList(api<Evidence[]>('/evidence?limit=200'), setItems),
-      loadList(api<Run[]>('/research/runs'), setRuns),
-      loadList(api<Job[]>('/research/jobs'), setJobs),
+      loadList(api<Project[]>('/projects'), apply(setProjects)),
       loadList(
-        api<Opportunity[]>('/opportunities' + (selected ? '?project_id=' + encodeURIComponent(selected) : '')),
-        setOpportunities,
+        api<Evidence[]>('/evidence?limit=200' + (scope ? '&project_id=' + encodeURIComponent(scope) : '')),
+        apply(setItems),
       ),
-      loadList(api<ApiKey[]>('/mcp/keys'), setKeys),
-      loadList(api<HostRun[]>('/mcp/runs'), setHostRuns),
-      loadList(api<HostWorkspace[]>('/mcp/workspaces'), setHostWorkspaces),
-      loadList(api<HostJob[]>('/mcp/research-jobs'), setHostJobs),
+      loadList(api<Run[]>('/research/runs'), apply(setRuns)),
+      loadList(api<Job[]>('/research/jobs'), apply(setJobs)),
+      loadList(
+        api<Opportunity[]>('/opportunities' + (scope ? '?project_id=' + encodeURIComponent(scope) : '')),
+        apply(setOpportunities),
+      ),
+      loadList(api<ApiKey[]>('/mcp/keys'), apply(setKeys)),
+      loadList(api<HostRun[]>('/mcp/runs'), apply(setHostRuns)),
+      loadList(api<HostWorkspace[]>('/mcp/workspaces'), apply(setHostWorkspaces)),
+      loadList(api<HostJob[]>('/mcp/research-jobs'), apply(setHostJobs)),
+      catalogRequest,
     ]);
+    if (!active()) return;
     if (results.some((success) => !success))
-      setNotice('Some research sections could not load. Your session is still active; refresh to retry.');
-  }, [selected]);
+      setLoadError('Some research sections could not load. Your session is still active; refresh to retry.');
+    setLoading(false);
+  }, [clearSession]);
   useEffect(() => {
     void load();
-  }, [load]);
-  useEffect(() => {
-    void api<SourceCatalog>('/sources')
-      .then((v) => setCatalog(v.sources))
-      .catch(() => setCatalog([]));
-  }, []);
+    return () => {
+      generation.current += 1;
+    };
+  }, [load, selected]);
   const chosenSource = catalog.find((x) => x.id === source);
 
   async function act(action: () => Promise<unknown>, message: string) {
+    if (actionPending.current) return;
+    actionPending.current = true;
     setBusy(true);
     setNotice('');
     try {
@@ -106,18 +175,22 @@ export function useWorkspace() {
     } catch (e) {
       setNotice(e instanceof Error ? e.message : 'Operation failed');
     } finally {
+      actionPending.current = false;
       setBusy(false);
     }
   }
   const project_id = selected || null;
   const latest = runs.find((r) => !selected || r.project_id === selected);
 
-  const context = { user, busy, act };
+  const context = { user, busy: busy || loading, act };
   const scope = { projects, selected, setSelected, project_id };
   const projectForm = { projectName, setProjectName };
   return {
     user,
     notice,
+    loadError,
+    loading,
+    load,
     context,
     scope,
     projectForm,
@@ -141,7 +214,6 @@ export function useWorkspace() {
       setArchivePost,
     },
     evidence: { items, manualTitle, setManualTitle, manualBody, setManualBody, manualUrl, setManualUrl },
-    evidenceScope: { project_id },
     analysis: {
       subreddit,
       setSubreddit,
@@ -149,11 +221,13 @@ export function useWorkspace() {
       setThreadId,
       topic,
       setTopic,
+      analysisLimit,
+      setAnalysisLimit,
       items,
       latest,
       projectEditor: { ...context, ...scope, ...projectForm },
     },
-    ideas: { opportunities, busy, act },
+    ideas: { opportunities, busy: busy || loading, act },
     jobView: { jobs, load },
     assisted: { hostJobs, hostRuns, hostWorkspaces, load },
     integrations: { keys, keyLabel, setKeyLabel, newKey, setNewKey },
@@ -162,12 +236,8 @@ export function useWorkspace() {
       act(
         () =>
           api('/auth/logout', { method: 'POST' }).then(() => {
-            setUser(null);
-            setProjects([]);
-            setItems([]);
-            setRuns([]);
-            setJobs([]);
-            setOpportunities([]);
+            generation.current += 1;
+            clearSession();
           }),
         'Disconnected',
       ),

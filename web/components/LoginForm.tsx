@@ -15,27 +15,29 @@ export default function LoginForm({ busy, act, localToken, setLocalToken }: Prop
           other permitted sources.
         </p>
       </div>
-      <label htmlFor="localToken">Local access token</label>
-      <input
-        id="localToken"
-        type="password"
-        autoComplete="off"
-        value={localToken}
-        onChange={(e) => setLocalToken(e.target.value)}
-        placeholder="Paste the token from your local .env"
-      />
-      <button
-        className="primary"
-        disabled={busy || !localToken.trim()}
-        onClick={() =>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (busy || !localToken.trim()) return;
           void act(async () => {
-            await api('/auth/local', { method: 'POST', body: JSON.stringify({ token: localToken }) });
+            await api('/auth/local', { method: 'POST', body: JSON.stringify({ token: localToken.trim() }) });
             setLocalToken('');
-          }, 'Local research workspace connected')
-        }
+          }, 'Local research workspace connected');
+        }}
       >
-        Sign in locally →
-      </button>
+        <label htmlFor="localToken">Local access token</label>
+        <input
+          id="localToken"
+          type="password"
+          autoComplete="off"
+          value={localToken}
+          onChange={(e) => setLocalToken(e.target.value)}
+          placeholder="Paste the token from your local .env"
+        />
+        <button className="primary" type="submit" disabled={busy || !localToken.trim()}>
+          Sign in locally →
+        </button>
+      </form>
       <p className="disclaimer">Alternatively, connect an approved Reddit account using the header link.</p>
     </section>
   );

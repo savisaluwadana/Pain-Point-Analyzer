@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Decision, Opportunity, Workspace } from './types';
 
@@ -18,7 +18,7 @@ const tabs: { view:View; name:string; glyph:string }[] = [
   { view:'opportunities', name:'Project ideas', glyph:'◇' },
   { view:'settings', name:'Storage & privacy', glyph:'⚙' },
 ];
-function humanDate(raw:string){try {return new Date(raw).toLocaleString();}catch{return raw;}}
+function humanDate(raw:string){const date = new Date(raw); return Number.isNaN(date.getTime()) ? raw : date.toLocaleString();}
 function sourceLink(raw:string){
   try { const u = new URL(raw); return ['http:','https:'].includes(u.protocol) ? u.href : undefined; }
   catch { return undefined; }
@@ -54,6 +54,8 @@ export default function App(){
   const [snapshot,setSnapshot]=useState<Workspace>(empty);
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
+  const mutationPending=useRef(false);
+  const refreshGeneration=useRef(0);
   const [error,setError]=useState('');
   const [notice,setNotice]=useState('');
   const [title,setTitle]=useState('');
@@ -61,10 +63,17 @@ export default function App(){
   const [url,setUrl]=useState('');
   const [topic,setTopic]=useState('Synthetic demo: ways open-source projects could help communities');
   const [exportPath,setExportPath]=useState('');
-  const refresh=useCallback(async()=>{const state=await invoke<Workspace>('load_workspace');setSnapshot(state);},[]);
-  useEffect(()=>{refresh().catch(e=>setError(String(e))).finally(()=>setLoading(false));},[refresh]);
+  const refresh=useCallback(async()=>{
+    const generation=++refreshGeneration.current;
+    try {const state=await invoke<Workspace>('load_workspace');if(generation===refreshGeneration.current)setSnapshot(state);}
+    catch(e){if(generation===refreshGeneration.current)setError('Unable to load the local workspace: '+String(e));}
+    finally{if(generation===refreshGeneration.current)setLoading(false);}
+  },[]);
+  useEffect(()=>{void refresh();return()=>{refreshGeneration.current+=1;};},[refresh]);
   const mutate=useCallback(async <T,>(action:()=>Promise<T>,success:string):Promise<{ok:true;value:T}|{ok:false}>=>{
-    setBusy(true);setError('');setNotice('');try{const outcome=await action();setNotice(success);return {ok:true,value:outcome};}catch(e){setError(String(e));return {ok:false};}finally{setBusy(false);}
+    if(mutationPending.current)return {ok:false};
+    mutationPending.current=true;
+    setBusy(true);setError('');setNotice('');try{const outcome=await action();setNotice(success);return {ok:true,value:outcome};}catch(e){setError(String(e));return {ok:false};}finally{mutationPending.current=false;setBusy(false);}
   },[]);
   const latest=snapshot.runs[0];
   const freshIdeas=snapshot.opportunities.filter(o=>o.run_id===latest?.id);
@@ -84,7 +93,7 @@ export default function App(){
     </aside>
     <main className="content">
       <header className="topbar"><div><span className="eyebrow">OPEN SOURCE DISCOVERY LAB / DESKTOP ALPHA</span><h1>{tabs.find(t=>t.view===view)?.name}</h1></div><span className="local-pill">● Data stored on this device</span></header>
-      {error&&<div className="message error" role="alert">{error}<button onClick={()=>setError('')} aria-label="Dismiss error">×</button></div>}
+      {error&&<div className="message error" role="alert">{error}<div><button disabled={busy} onClick={()=>{setError('');void refresh();}}>Retry loading</button><button onClick={()=>setError('')} aria-label="Dismiss error">×</button></div></div>}
       {notice&&<div className="message success" role="status">{notice}<button onClick={()=>setNotice('')} aria-label="Dismiss notice">×</button></div>}
       {loading?<section className="card">Loading your local research database…</section>:<>
       {view==='overview'&&<>

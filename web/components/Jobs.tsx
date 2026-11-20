@@ -26,7 +26,7 @@ export default function Jobs({ jobs, load }: Props) {
           ))}
         </div>
       ) : (
-        <p className="empty">No Reddit collection jobs. Queue one from Community Discovery.</p>
+        <p className="empty">No Reddit collection jobs. Queue one from Analyze &amp; Discover.</p>
       )}
     </section>
   );

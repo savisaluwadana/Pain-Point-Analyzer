@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { api } from '../lib/api';
+import { api, safeSourceUrl } from '../lib/api';
 import type { Opportunity, OpportunityBrief, OpportunityDecision } from '../lib/types';
 
 type Props = {
@@ -16,16 +16,6 @@ const decisions: { value: OpportunityDecision; label: string }[] = [
   { value: 'ready_to_build', label: 'Ready to build (manual decision)' },
   { value: 'not_pursuing', label: 'Not pursuing' },
 ];
-
-function safeSourceUrl(value?: string) {
-  if (!value) return undefined;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : undefined;
-  } catch {
-    return undefined;
-  }
-}
 
 export default function OpportunityReview({ opportunity, busy, act }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -58,7 +48,13 @@ export default function OpportunityReview({ opportunity, busy, act }: Props) {
 
   return (
     <div className="subpanel">
-      <button className="secondary" type="button" aria-expanded={expanded} onClick={() => void toggle()}>
+      <button
+        className="secondary"
+        type="button"
+        disabled={loading}
+        aria-expanded={expanded}
+        onClick={() => void toggle()}
+      >
         {expanded ? 'Hide opportunity review' : 'Review evidence and decision'}
       </button>
       {expanded && (

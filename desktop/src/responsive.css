@@ -1,0 +1,15 @@
+.sidebar { overflow-y: auto; }
+.content, .stack > *, .metrics > *, .op-head > div { min-width: 0; }
+.card, .opportunity, .intro-card { overflow-wrap: anywhere; }
+.intro-actions, .entry-line, .form-actions { flex-wrap: wrap; }
+.message > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.fineprint { color: #596b60 !important; }
+@media (max-width: 600px) {
+  .topbar { flex-wrap: wrap; }
+  .local-pill { white-space: normal; }
+  .metrics { grid-template-columns: minmax(0, 1fr); }
+  .card, .intro-card { padding: 18px; }
+  .card-head { flex-wrap: wrap; }
+  .score { white-space: normal; }
+  .sidebar nav { max-width: 100%; }
+}
